@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Counter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        @font-face {
+            font-family: 'Digital';
+            src: url('data:font/truetype;charset=utf-8;base64,') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        body {
+            width: 512px;
+            height: 256px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', 'Courier', 'Monaco', 'Menlo', 'Consolas', monospace;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .counter-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .counter-label {
+            font-size: 18px;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+        
+        .counter-display {
+            font-size: 72px;
+            font-weight: bold;
+            color: #00ff00;
+            text-shadow: 
+                0 0 5px #00ff00,
+                0 0 10px #00ff00,
+                0 0 15px #00ff00,
+                0 0 20px #00ff00;
+            letter-spacing: 4px;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            text-align: center;
+            min-width: 400px;
+            font-family: 'Courier New', 'Courier', 'Monaco', 'Menlo', 'Consolas', monospace;
+        }
+        
+        .currency-symbol {
+            font-size: 48px;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            margin-left: 10px;
+        }
+        
+        .glow-effect {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(0, 255, 0, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 0.5;
+            }
+            50% {
+                opacity: 0.8;
+            }
+        }
+        
+        .display-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="glow-effect"></div>
+    <div class="counter-container">
+        <div class="counter-label">MONEY COUNT</div>
+        <div class="display-row">
+            <div class="counter-display" id="counterValue">$0</div>
+        </div>
+    </div>
+    
+    <script>
+        let currentValue = 0;
+        
+        window.addEventListener('message', function(event) {
+            const data = event.data;
+            
+            if (data.type === 'updateCounter') {
+                currentValue = data.value || 0;
+                updateDisplay();
+            } else if (data.type === 'setCounter') {
+                currentValue = data.value || 0;
+                updateDisplay();
+            } else if (data.type === 'addCounter') {
+                currentValue += (data.value || 0);
+                updateDisplay();
+            } else if (data.type === 'resetCounter') {
+                currentValue = 0;
+                updateDisplay();
+            }
+        });
+        
+        function updateDisplay() {
+            const display = document.getElementById('counterValue');
+            const formatted = formatNumber(currentValue);
+            display.textContent = '$' + formatted;
+        }
+        
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+        
+        // Initialize display
+        updateDisplay();
+    </script>
+</body>
+</html>
