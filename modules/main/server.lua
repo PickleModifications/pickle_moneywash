@@ -123,10 +123,17 @@ end)
 
 RegisterNetEvent("pickle_moneywash:initializePlayer", function()
     local src = source
+    local moneyCounters = {}
+    if PMW_Entities and PMW_Entities.GetByType then
+        moneyCounters = PMW_Entities.GetByType("moneycounter")
+    end
     TriggerClientEvent("pickle_moneywash:initializePlayer", src, {
-        moneyCounters = MoneyCounters,
+        moneyCounters = moneyCounters,
         moneyProcessors = MoneyProcessors,
     })
+    if PMW_Entities and PMW_Entities.SyncPlayer then
+        PMW_Entities.SyncPlayer(src)
+    end
 end)
 
 CreateThread(function()

@@ -11,6 +11,7 @@ files {
 	"nui/index.html",
 	"nui/images/*.*",
 	"nui/fonts/*.*",
+	"nui/audio/*.*",
 	"nui/sounds/*.*",
 	"nui/assets/**/*.*",
 	"nui/debug.js",

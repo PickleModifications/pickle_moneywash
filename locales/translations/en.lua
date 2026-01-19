@@ -7,9 +7,9 @@ Language["en"] = {
     enter_line_wait = "You are in line (%s / %s)    \n[E] - Exit Line",
     enter_line = "Enter Line",
     club_entry_no_pass = "You do not have a club pass to enter this club, get one from the bouncer.",
-    moneybag_withdraw = "Click to Withdraw - %s",
+    moneybag_collect = "Click to Collect - %s",
     moneycounter_no_dirty_money = "No dirty money to count.",
     moneycounter_place_money = "You place %s dirty money into the counter.",
     moneycounter_remaining = "Remaining: %s",
-    moneycounter_washed_money = "You washed %s of dirty money",
+    moneycounter_counted_money = "You counted %s of dirty money",
 }

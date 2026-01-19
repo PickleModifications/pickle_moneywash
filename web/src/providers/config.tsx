@@ -286,7 +286,19 @@ export const ConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         },
     });
     useNuiEvent('setConfig', (data) => {
-        setConfig({ ...config, ...data.config });
+        const next = data?.config || {};
+        setConfig((prev) => ({
+            ...prev,
+            ...next,
+            locale: {
+                ...(prev.locale || {}),
+                ...(next.locale || {}),
+            },
+            items: {
+                ...(prev.items || {}),
+                ...(next.items || {}),
+            },
+        }));
     });
     return (
         <ConfigContext.Provider value={{ config, setConfig }}>
