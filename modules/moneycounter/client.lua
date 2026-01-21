@@ -41,7 +41,7 @@ local function SpawnAnimatedBill(id, count, isLocalInteraction)
     local base = GetMoneyCounterBaseEntity(id)
     if not base or not DoesEntityExist(base) then return end
 
-    local bill = CreateProp(`bkr_prop_money_wrapped_01`, 0.0, 0.0, 0.0, false, false, false)
+    local bill = CreateProp(`bkr_prop_money_unsorted_01`, 0.0, 0.0, 0.0, false, false, false)
     if not bill or bill == 0 then return end
 
     TrackAnimatedBill(id, bill)
@@ -53,11 +53,11 @@ local function SpawnAnimatedBill(id, count, isLocalInteraction)
 
     -- Matches the old interactive animation offsets
     local start = {
-        offsetCoords = vector3(0.0, 0.0, 0.155),
+        offsetCoords = vector3(0.0, 0.0, 0.25),
         offsetRotation = vector3(-90.0, 0.0, 0.0),
     }
     local finish = {
-        offsetCoords = vector3(0.0, -0.135, 0.025 + ((billCount - 1) * 0.0025)),
+        offsetCoords = vector3(0.0, -0.17, 0.025 + ((billCount - 1) * 0.0025)),
         offsetRotation = vector3(0.0, 0.0, 0.0),
     }
 
@@ -344,7 +344,7 @@ function RenderMoneyCounter(id)
     SetEntityCollision(moneycounter, true, true)
     SetEntityHeading(moneycounter, heading)
     local moneyCoords = coords + (rightVector * 0.35)
-    local money = CreateProp(`bkr_prop_money_wrapped_01`, moneyCoords.x, moneyCoords.y, moneyCoords.z, false, false, false)
+    local money = CreateProp(`bkr_prop_money_unsorted_01`, moneyCoords.x, moneyCoords.y, moneyCoords.z, false, false, false)
     SetEntityCollision(money, true, true)
     SetEntityHeading(money, heading)
     RenderedMoneyCounters[id] = {
@@ -360,12 +360,15 @@ exports('ResetMoneyCounter', ResetMoneyCounter)
 exports('GetMoneyCounterEntities', GetMoneyCounterEntities)
 
 function StopMoneyCounterInteraction(id)
-    ShowNotification(_L("moneycounter_no_dirty_money"))
     CleanupMoneyCounterDUI()
     StopInteraction()
     ClearPedTasks(PlayerPedId())
     RenderMoneyCounter(id)
     DeleteAnimatedBills(id)
+    -- Release the exclusive-use lock server-side
+    if id then
+        TriggerServerEvent("pickle_moneywash:moneycounter:releaseUse", tostring(id))
+    end
     MONEYCOUNTER_INTERACTION = nil
 end
 
@@ -405,9 +408,6 @@ function StartMoneyCounterInteraction(id)
     local minimum, maximum = GetModelDimensions(`bkr_prop_money_counter`)
     local width = maximum.y - minimum.y
     local height = maximum.z - minimum.z
-    local leftBound = GetOffsetFromEntityInWorldCoords(moneycounterEntity, 0.16, 0.0, 0.0).x
-    local rightBound = GetOffsetFromEntityInWorldCoords(moneycounterEntity, -0.38, 0.0, 0.0).x
-
     -- Spawn position for money (where remaining money text will be shown)
     local spawnPosition = coords + (interaction.rightVector * 0.35)
     local movedEntities = {} -- Track entities that have moved from spawn position
@@ -445,9 +445,8 @@ function StartMoneyCounterInteraction(id)
                     if movedEntities[k] and moneyPerBill > 0 then
                         DrawText3D(entityCoords.x, entityCoords.y, entityCoords.z + 0.1, ("%s"):format(GetCurrencyString(math.floor(moneyPerBill))))
                     end
-                    
-                    -- Check if money is in counter bounds
-                    if entityCoords.x > leftBound and entityCoords.x < rightBound and entityCoords.z < moneycounterCoords.z + (height - 0.1) + 0.1 then
+                    local offset = GetOffsetFromEntityGivenWorldCoords(moneycounterEntity, entityCoords.x, entityCoords.y, entityCoords.z)
+                    if offset.x > -0.4 and offset.x < 0.16 and entityCoords.z < moneycounterCoords.z + (height - 0.1) + 0.1 then
                         MONEYCOUNTER_INTERACTION.dirtyMoney = MONEYCOUNTER_INTERACTION.dirtyMoney - moneyPerBill
                         entitiesToDelete[#entitiesToDelete + 1] = k
                         -- Spawn local animated bill + broadcast to nearby clients
@@ -480,7 +479,6 @@ function StartMoneyCounterInteraction(id)
     if not data then return StopMoneyCounterInteraction(id) end
         print("^2Data: ", json.encode(data))
         if data.totalDirtyMoney <= 0 then
-            ShowNotification(_L("moneycounter_no_dirty_money"))
             return StopMoneyCounterInteraction(id)
         end
         if not MONEYCOUNTER_INTERACTION then return end
@@ -492,6 +490,12 @@ end
 function InitializeMoneyCounterInteraction(id)
     local moneyCounter = MoneyCounters[id]
     if not moneyCounter then return end
+    -- Acquire exclusive-use lock (one player per entity)
+    local lock = lib.callback.await("pickle_moneywash:moneycounter:tryUse", false, id)
+    if not lock or lock.ok ~= true then
+        ShowNotification(_L("moneycounter_in_use") or "Someone is already using this money counter.")
+        return
+    end
     local data = lib.callback.await("pickle_moneywash:getMoneyCounterData", false, id)
     if not data then return end
     if data.totalDirtyMoney <= 0 then return ShowNotification(_L("moneycounter_no_dirty_money")) end
@@ -528,6 +532,23 @@ function InitializeMoneyCounterInteraction(id)
         end
         SetEntityVisible(PlayerPedId(), true, false)
     end)
+
+    -- Keepalive + proximity watchdog: auto-release if player leaves the area
+    CreateThread(function()
+        local validateDistance = 5.0
+        while MONEYCOUNTER_INTERACTION and MONEYCOUNTER_INTERACTION.id == id do
+            local ped = PlayerPedId()
+            local pcoords = GetEntityCoords(ped)
+            local dist = #(pcoords - coords)
+            if dist > validateDistance then
+                ShowNotification(_L("moneycounter_too_far") or "You moved too far away from the money counter.")
+                StopMoneyCounterInteraction(id)
+                break
+            end
+            TriggerServerEvent("pickle_moneywash:moneycounter:keepalive", tostring(id))
+            Wait(5000)
+        end
+    end)
     PlayAnim(PlayerPedId(), "amb@prop_human_bum_shopping_cart@male@idle_a", "idle_c", 8.0, -8.0, -1, 1, 0, 0, 0, 0)
     -- Create DUI for the moneycounter entity now that interaction has started
     if moneycounterEntity then
@@ -558,7 +579,7 @@ CreateThread(function()
     })
     RegisterInteractiveEntity("money", {
         init = function(coords, heading, data, params)
-            local moneycounter = CreateProp(`bkr_prop_money_wrapped_01`, coords.x, coords.y, coords.z, false, false, false)
+            local moneycounter = CreateProp(`bkr_prop_money_unsorted_01`, coords.x, coords.y, coords.z, false, false, false)
             SetEntityCollision(moneycounter, true, true)
             SetEntityHeading(moneycounter, heading)
             return moneycounter, {
@@ -607,12 +628,12 @@ local function EnsureMoneyCounterInteraction(id)
         label = "Money Counter",
         icon = Config.TargetIcons.moneycounter,
     }, function()
-        local isAdmin = lib.callback.await("pickle_moneywash:entities:isAdmin", false) == true
-        if isAdmin then
+        local canManage = lib.callback.await("pickle_moneywash:entities:canManage", false, "moneycounter", id) == true
+        if canManage then
             -- Prefer a simple confirm dialog if available; fallback to a context menu prompt.
             local ok, res = pcall(function()
                 return lib.alertDialog({
-                    header = "Admin",
+                    header = "Manage",
                     content = "Manage this money counter?",
                     centered = true,
                     cancel = true,
@@ -630,7 +651,7 @@ local function EnsureMoneyCounterInteraction(id)
                 local promptId = ("pmw_manage_prompt_moneycounter_%s"):format(id)
                 lib.registerContext({
                     id = promptId,
-                    title = "Admin",
+                    title = "Manage",
                     options = {
                         {
                             title = "Manage",
@@ -764,6 +785,9 @@ end)
 -- Cleanup on resource stop
 AddEventHandler("onResourceStop", function(resource)
     if resource == GetCurrentResourceName() then
+        if MONEYCOUNTER_INTERACTION and MONEYCOUNTER_INTERACTION.id then
+            TriggerServerEvent("pickle_moneywash:moneycounter:releaseUse", tostring(MONEYCOUNTER_INTERACTION.id))
+        end
         for entity, _ in pairs(MONEYCOUNTER_DUI) do
             if MONEYCOUNTER_DUI[entity].dui then
                 DestroyDui(MONEYCOUNTER_DUI[entity].dui)
@@ -777,6 +801,9 @@ AddEventHandler("onResourceStop", function(resource)
         end
         for id, interactionId in pairs(MoneyCounterInteractions) do
             RemoveMoneyCounterInteraction(id)
+        end
+        for id, _ in pairs(AnimatedBills) do
+            DeleteAnimatedBills(id)
         end
         MONEYCOUNTER_DUI = {}
         MONEYCOUNTER_ENTITIES = {}

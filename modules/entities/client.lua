@@ -523,6 +523,50 @@ AddEventHandler("pickle_moneywash:entities:openManage", function(entityType, id)
     openEntityManageMenu(entityType, id)
 end)
 
+-- Item-based placement entry point (creates an owned entity on the server)
+RegisterNetEvent("pickle_moneywash:entities:placeFromItem", function(entityType)
+    entityType = normalizeType(entityType)
+    if not entityType then return end
+    local def = ClientTypes[entityType]
+    if not def or not def.toPayloadFromGizmo then
+        return ShowNotification("^1This entity type cannot be placed.^0")
+    end
+
+    local ped = PlayerPedId()
+    local startCoords = GetEntityCoords(ped) + (GetEntityForwardVector(ped) * 2.0)
+    local startHeading = GetEntityHeading(ped)
+
+    local gizmoResult = StartGizmoEditor({
+        model = def.gizmoModel,
+        coords = startCoords,
+        rotation = vector3(0.0, 0.0, startHeading),
+        enableCancel = true,
+    })
+
+    if not gizmoResult then
+        return ShowNotification("Cancelled.")
+    end
+
+    local payload = def.toPayloadFromGizmo(gizmoResult, nil)
+    payload.data = payload.data or {}
+    if payload.data.blipEnabled == nil and Config and Config.EntityBlips and Config.EntityBlips[entityType] then
+        local cfg = Config.EntityBlips[entityType]
+        if cfg.defaultEnabled ~= nil then
+            payload.data.blipEnabled = cfg.defaultEnabled == true
+        else
+            payload.data.blipEnabled = true
+        end
+    end
+
+    local created = lib.callback.await("pickle_moneywash:entities:createOwned", false, entityType, payload)
+    if not created then
+        return ShowNotification("^1Failed to place (missing item or no permission).^0")
+    end
+
+    ShowNotification(("Placed (%s)."):format(created.id or "unknown"))
+    TriggerServerEvent("pickle_moneywash:entities:requestSync")
+end)
+
 -- ============
 -- Default entity types
 -- ============

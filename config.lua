@@ -6,17 +6,23 @@ Config.InteractDistance = 2.0
 Config.MusicRadius = 20.0
 Config.DebugListen = false -- When false, the broadcaster will not auto-listen to their own stream
 Config.UseTarget = true -- This enables the use of the target system when available.
+Config.XPEnabled = true -- This enables the use of the XP system.
+Config.XPCategories = {
+    ["money_laundering"] = {
+        label = "Money Laundering",
+    },
+}
 Config.ImageDirectory = "nui://ox_inventory/web/images/"
 Config.ImageExtension = "png"
 Config.WeaponsAreItems = true -- This enables the use of weapons as items. If set to false, weapons will be treated as items and not as weapons.
 Config.Currency = { currency = "USD", countryCode = "en-US" } -- Look up JS currency and countryCode variables for more options. 
 Config.AdminGroups = {
-    "qbcore.admin",
-    "qbcore.god",
-    "god",
-    "admin",
-    "mod",
-    "superadmin",
+    -- "qbcore.admin",
+    -- "qbcore.god",
+    -- "god",
+    -- "admin",
+    -- "mod",
+    -- "superadmin",
 }
 Config.TargetIcons = {
     moneycounter = "fas fa-money-bill",
@@ -71,7 +77,7 @@ Config.MoneyCounter = {
 }
 
 -- Business laundering system (processor terminals open a UI listing these businesses).
--- Duration uses your chosen unit: seconds per $1 (endTime = now + amount * secondsPerCash)
+-- Duration uses your chosen unit: $ per second (endTime = now + ceil(amount / cashPerSecond))
 Config.MoneyWash = {
     -- World interaction settings for placed "moneyprocessor" terminals.
     processor = {
@@ -81,35 +87,32 @@ Config.MoneyWash = {
         propZOffset = -0.05,
     },
 
-    -- Tiered businesses (tier 1 is free to unlock).
+    -- Tiered businesses (tier is derived from array order; index 1 is tier 1 and is free to unlock).
     -- maxCapacity is the maximum total amount currently processing (active jobs) for that business.
     businesses = {
         {
             id = "corner_store",
             label = "Corner Store",
-            tier = 1,
             unlockCost = 0,
             feePercent = 25,
             maxCapacity = 15000,
-            secondsPerCash = 0.25,
+            cashPerSecond = 100, -- $/sec
         },
         {
             id = "car_wash",
             label = "Car Wash",
-            tier = 2,
             unlockCost = 2500,
             feePercent = 20,
             maxCapacity = 30000,
-            secondsPerCash = 0.2,
+            cashPerSecond = 200, -- $/sec
         },
         {
             id = "nightclub",
             label = "Nightclub",
-            tier = 3,
             unlockCost = 10000,
             feePercent = 15,
             maxCapacity = 75000,
-            secondsPerCash = 0.15,
+            cashPerSecond = 1000, -- $/sec
         },
     },
 }

@@ -113,29 +113,82 @@
     
     <script>
         let currentValue = 0;
+        let displayedValue = 0;
+        let animFrame = null;
+        let animStart = 0;
+        let animFrom = 0;
+        let animTo = 0;
         
         window.addEventListener('message', function(event) {
             const data = event.data;
             
             if (data.type === 'updateCounter') {
                 currentValue = data.value || 0;
-                updateDisplay();
+                animateDisplayTo(currentValue);
             } else if (data.type === 'setCounter') {
                 currentValue = data.value || 0;
-                updateDisplay();
+                animateDisplayTo(currentValue);
             } else if (data.type === 'addCounter') {
                 currentValue += (data.value || 0);
-                updateDisplay();
+                animateDisplayTo(currentValue);
             } else if (data.type === 'resetCounter') {
                 currentValue = 0;
-                updateDisplay();
+                animateDisplayTo(currentValue);
             }
         });
         
-        function updateDisplay() {
+        function updateDisplay(value) {
             const display = document.getElementById('counterValue');
-            const formatted = formatNumber(currentValue);
+            const formatted = formatNumber(value);
             display.textContent = '$' + formatted;
+        }
+
+        function easeOutCubic(t) {
+            return 1 - Math.pow(1 - t, 3);
+        }
+
+        function getDurationMs(from, to) {
+            // const delta = Math.abs(to - from);
+            // Scale duration with the size of the change, but clamp.
+            // Small changes should still feel snappy; large changes shouldn't take forever.
+            // return Math.max(250, Math.min(900, 250 + (delta / 2500) * 650));
+            if (to <= from) return 0;
+            return 1200;
+        }
+
+        function animateDisplayTo(targetValue) {
+            targetValue = Number(targetValue) || 0;
+
+            // If we get a new target while animating, start from the current rendered number.
+            if (animFrame !== null) {
+                cancelAnimationFrame(animFrame);
+                animFrame = null;
+            }
+
+            animStart = performance.now();
+            animFrom = displayedValue;
+            animTo = targetValue;
+            const duration = getDurationMs(animFrom, animTo);
+
+            const step = (now) => {
+                const t = Math.min(1, (now - animStart) / duration);
+                const eased = easeOutCubic(t);
+
+                // Interpolate and snap to whole dollars.
+                const next = Math.round(animFrom + (animTo - animFrom) * eased);
+                displayedValue = next;
+                updateDisplay(displayedValue);
+
+                if (t < 1) {
+                    animFrame = requestAnimationFrame(step);
+                } else {
+                    animFrame = null;
+                    displayedValue = animTo;
+                    updateDisplay(displayedValue);
+                }
+            };
+
+            animFrame = requestAnimationFrame(step);
         }
         
         function formatNumber(num) {
@@ -143,7 +196,8 @@
         }
         
         // Initialize display
-        updateDisplay();
+        displayedValue = currentValue;
+        updateDisplay(displayedValue);
     </script>
 </body>
 </html>

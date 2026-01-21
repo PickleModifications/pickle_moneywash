@@ -58,7 +58,6 @@ local function ensureTables()
     local createAccounts = [[
 CREATE TABLE IF NOT EXISTS `pickle_moneywash_accounts` (
   `identifier` VARCHAR(128) NOT NULL,
-  `counted_balance` BIGINT NOT NULL DEFAULT 0,
   `withdrawable_balance` BIGINT NOT NULL DEFAULT 0,
   `unlocked_businesses` LONGTEXT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -107,6 +106,22 @@ local function normBusinessId(id)
     return id
 end
 
+local function getMoneyLaunderingLevel(src)
+    if not (Config and Config.XPEnabled) then return 1 end
+    if type(GetPlayerLevel) ~= "function" then return 1 end
+    local lvl = tonumber(GetPlayerLevel(src, "money_laundering")) or 1
+    if lvl < 1 then lvl = 1 end
+    return lvl
+end
+
+local function hasBusinessXPAccess(src, business)
+    if not (Config and Config.XPEnabled) then return false end
+    local req = tonumber(business and business.xpLevel) or 1
+    if req <= 1 then return false end
+    local lvl = getMoneyLaunderingLevel(src)
+    return lvl >= req
+end
+
 local function getBusinesses()
     local list = (Config and Config.MoneyWash and Config.MoneyWash.businesses) or {}
     local out = {}
@@ -114,21 +129,31 @@ local function getBusinesses()
         local b = list[i]
         local bid = normBusinessId(b and b.id)
         if bid then
+            local cashPerSecond = tonumber(b.cashPerSecond)
+            if not cashPerSecond then
+                -- Backwards compat: if config still uses secondsPerCash (seconds per $1), convert.
+                local secondsPerCash = tonumber(b.secondsPerCash)
+                if secondsPerCash and secondsPerCash > 0 then
+                    cashPerSecond = 1.0 / secondsPerCash
+                end
+            end
+            cashPerSecond = tonumber(cashPerSecond) or 0
+            if cashPerSecond < 0 then cashPerSecond = 0 end
+
             out[#out + 1] = {
                 id = bid,
                 label = b.label or bid,
-                tier = tonumber(b.tier) or 1,
+                -- Tier is derived from config array order (index 1 is tier 1).
+                tier = i,
                 unlockCost = tonumber(b.unlockCost) or 0,
                 feePercent = tonumber(b.feePercent) or 0,
                 maxCapacity = tonumber(b.maxCapacity) or 0,
-                secondsPerCash = tonumber(b.secondsPerCash) or 0,
+                cashPerSecond = cashPerSecond,
+                xpLevel = tonumber(b.xpLevel) or 1,
+                xpOptional = (b.xpOptional == true),
             }
         end
     end
-    table.sort(out, function(a, b)
-        if a.tier ~= b.tier then return a.tier < b.tier end
-        return tostring(a.label) < tostring(b.label)
-    end)
     return out
 end
 
@@ -170,7 +195,7 @@ local function getOrCreateAccountRow(identifier)
     ensureTables()
     local rows = awaitMySQL(function(done)
         MySQL.Async.fetchAll(
-            "SELECT identifier, counted_balance, withdrawable_balance, unlocked_businesses FROM `pickle_moneywash_accounts` WHERE identifier=@identifier LIMIT 1",
+            "SELECT identifier, withdrawable_balance, unlocked_businesses FROM `pickle_moneywash_accounts` WHERE identifier=@identifier LIMIT 1",
             { ["@identifier"] = identifier },
             function(r) done(r) end
         )
@@ -180,7 +205,7 @@ local function getOrCreateAccountRow(identifier)
 
     awaitMySQL(function(done)
         MySQL.Async.execute(
-            "INSERT INTO `pickle_moneywash_accounts` (identifier, counted_balance, withdrawable_balance, unlocked_businesses) VALUES (@identifier, 0, 0, NULL)",
+            "INSERT INTO `pickle_moneywash_accounts` (identifier, withdrawable_balance, unlocked_businesses) VALUES (@identifier, 0, NULL)",
             { ["@identifier"] = identifier },
             function() done(true) end
         )
@@ -188,7 +213,7 @@ local function getOrCreateAccountRow(identifier)
 
     rows = awaitMySQL(function(done)
         MySQL.Async.fetchAll(
-            "SELECT identifier, counted_balance, withdrawable_balance, unlocked_businesses FROM `pickle_moneywash_accounts` WHERE identifier=@identifier LIMIT 1",
+            "SELECT identifier, withdrawable_balance, unlocked_businesses FROM `pickle_moneywash_accounts` WHERE identifier=@identifier LIMIT 1",
             { ["@identifier"] = identifier },
             function(r) done(r) end
         )
@@ -196,14 +221,13 @@ local function getOrCreateAccountRow(identifier)
     return rows and rows[1] or nil
 end
 
-local function setBalances(identifier, counted, withdrawable, unlockedSet)
+local function setBalances(identifier, withdrawable, unlockedSet)
     ensureTables()
     return awaitMySQL(function(done)
         MySQL.Async.execute(
-            "UPDATE `pickle_moneywash_accounts` SET counted_balance=@counted, withdrawable_balance=@withdrawable, unlocked_businesses=@unlocked WHERE identifier=@identifier",
+            "UPDATE `pickle_moneywash_accounts` SET withdrawable_balance=@withdrawable, unlocked_businesses=@unlocked WHERE identifier=@identifier",
             {
                 ["@identifier"] = identifier,
-                ["@counted"] = math.floor(tonumber(counted) or 0),
                 ["@withdrawable"] = math.floor(tonumber(withdrawable) or 0),
                 ["@unlocked"] = unlockedSet and encodeUnlocked(unlockedSet) or nil,
             },
@@ -230,8 +254,12 @@ local function validateProcessorDistance(src, processorId)
     return dist <= maxDist
 end
 
-local function finalizeCompletedJobs(identifier)
+local FinalizeLocks = {} -- [identifier] = true while finalizing
+
+local function finalizeCompletedJobs(identifier, notifySrc)
     if not identifier then return end
+    if FinalizeLocks[identifier] then return end
+    FinalizeLocks[identifier] = true
     ensureTables()
 
     local now = nowSec()
@@ -243,7 +271,16 @@ local function finalizeCompletedJobs(identifier)
         )
     end)
 
-    if not rows or #rows == 0 then return end
+    if not rows or #rows == 0 then
+        FinalizeLocks[identifier] = nil
+        return
+    end
+
+    local businessLabels = {}
+    local businesses = getBusinesses()
+    for i = 1, #businesses do
+        businessLabels[businesses[i].id] = businesses[i].label or businesses[i].id
+    end
 
     local totalNet = 0
     for i = 1, #rows do
@@ -269,10 +306,24 @@ local function finalizeCompletedJobs(identifier)
 
     -- Credit withdrawable balance
     local acct = getOrCreateAccountRow(identifier)
-    local counted = tonumber(acct and acct.counted_balance) or 0
     local withdrawable = tonumber(acct and acct.withdrawable_balance) or 0
     withdrawable = withdrawable + totalNet
-    setBalances(identifier, counted, withdrawable, decodeUnlocked(acct and acct.unlocked_businesses))
+    setBalances(identifier, withdrawable, decodeUnlocked(acct and acct.unlocked_businesses))
+
+    if notifySrc and totalNet > 0 then
+        -- One completion per business max (enforced elsewhere), so per-row notify is OK.
+        for i = 1, #rows do
+            local label = businessLabels[tostring(rows[i].business_id)] or tostring(rows[i].business_id)
+            local net = math.floor(tonumber(rows[i].net_amount) or 0)
+            if net > 0 then
+                ShowNotification(notifySrc, _L("pmw_processing_ready", label, GetCurrencyString(net)))
+            else
+                ShowNotification(notifySrc, _L("pmw_processing_ready", label, GetCurrencyString(0)))
+            end
+        end
+    end
+
+    FinalizeLocks[identifier] = nil
 end
 
 local function getActiveJobs(identifier)
@@ -284,6 +335,18 @@ local function getActiveJobs(identifier)
             function(r) done(r or {}) end
         )
     end)
+end
+
+local function hasActiveJob(identifier, businessId)
+    ensureTables()
+    local row = awaitMySQL(function(done)
+        MySQL.Async.fetchAll(
+            "SELECT id FROM `pickle_moneywash_jobs` WHERE identifier=@identifier AND business_id=@business_id AND status='active' LIMIT 1",
+            { ["@identifier"] = identifier, ["@business_id"] = businessId },
+            function(r) done((r and r[1]) or nil) end
+        )
+    end)
+    return row ~= nil
 end
 
 local function getActiveCapacity(identifier, businessId)
@@ -303,20 +366,30 @@ local function buildState(src, processorId)
     if not identifier then return nil end
     ensureTables()
 
-    finalizeCompletedJobs(identifier)
+    finalizeCompletedJobs(identifier, src)
 
     local acct = getOrCreateAccountRow(identifier)
-    local counted = math.floor(tonumber(acct and acct.counted_balance) or 0)
     local withdrawable = math.floor(tonumber(acct and acct.withdrawable_balance) or 0)
     local unlocked = decodeUnlocked(acct and acct.unlocked_businesses)
 
+    local unprocessed = 0
+    if Inventory and Inventory.GetItemCount then
+        unprocessed = math.floor(tonumber(Inventory.GetItemCount(src, "unprocessed_money")) or 0)
+    end
+
     local businesses = getBusinesses()
     local unlockedOut = {}
+    local playerLvl = getMoneyLaunderingLevel(src)
     for i = 1, #businesses do
         local b = businesses[i]
+        local xpReq = tonumber(b.xpLevel) or 1
+        local xpMet = (Config and Config.XPEnabled) and xpReq > 1 and playerLvl >= xpReq
         if (tonumber(b.tier) or 1) <= 1 then
             unlockedOut[b.id] = true
         elseif unlocked[b.id] then
+            unlockedOut[b.id] = true
+        elseif xpMet then
+            -- XP can grant access without purchase.
             unlockedOut[b.id] = true
         end
     end
@@ -347,7 +420,7 @@ local function buildState(src, processorId)
         serverTime = nowSec(),
         processorId = processorId and tostring(processorId) or nil,
         balances = {
-            counted = counted,
+            unprocessed = unprocessed,
             withdrawable = withdrawable,
         },
         businesses = businesses,
@@ -357,21 +430,7 @@ local function buildState(src, processorId)
     }
 end
 
--- Export for other modules (e.g., moneycounter)
-PMW_MoneyWash.AddCountedBalance = function(identifier, amount)
-    if not identifier then return false end
-    amount = math.floor(tonumber(amount) or 0)
-    if amount <= 0 then return false end
-    ensureTables()
-    local acct = getOrCreateAccountRow(identifier)
-    if not acct then return false end
-    local counted = math.floor(tonumber(acct.counted_balance) or 0)
-    local withdrawable = math.floor(tonumber(acct.withdrawable_balance) or 0)
-    local unlocked = decodeUnlocked(acct.unlocked_businesses)
-    counted = counted + amount
-    setBalances(identifier, counted, withdrawable, unlocked)
-    return true
-end
+-- Legacy API removed: counted balance no longer used (moneycounter outputs unprocessed_money items).
 
 -- ox_lib callbacks (client will call these and return results to NUI)
 lib.callback.register("pmw:processor:getState", function(source, processorId)
@@ -390,6 +449,19 @@ lib.callback.register("pmw:processor:unlockBusiness", function(source, processor
 
     local business = findBusiness(businessId)
     if not business then return nil end
+
+    -- XP requirement (optional purchase bypass if xpOptional = true).
+    local xpReq = tonumber(business.xpLevel) or 1
+    if (Config and Config.XPEnabled) and xpReq > 1 then
+        local lvl = getMoneyLaunderingLevel(src)
+        if lvl >= xpReq then
+            -- Already has access via XP.
+            return buildState(src, processorId)
+        end
+        if business.xpOptional ~= true then
+            return { error = "xp_required" }
+        end
+    end
 
     local tier = tonumber(business.tier) or 1
     if tier <= 1 then
@@ -414,9 +486,8 @@ lib.callback.register("pmw:processor:unlockBusiness", function(source, processor
 
     unlocked[business.id] = true
 
-    local counted = math.floor(tonumber(acct and acct.counted_balance) or 0)
     local withdrawable = math.floor(tonumber(acct and acct.withdrawable_balance) or 0)
-    setBalances(identifier, counted, withdrawable, unlocked)
+    setBalances(identifier, withdrawable, unlocked)
 
     return buildState(src, processorId)
 end)
@@ -443,17 +514,26 @@ lib.callback.register("pmw:processor:deposit", function(source, processorId, bus
     finalizeCompletedJobs(identifier)
 
     acct = getOrCreateAccountRow(identifier)
-    local counted = math.floor(tonumber(acct and acct.counted_balance) or 0)
     local withdrawable = math.floor(tonumber(acct and acct.withdrawable_balance) or 0)
     local unlocked = decodeUnlocked(acct and acct.unlocked_businesses)
 
-    local isUnlocked = (tonumber(business.tier) or 1) <= 1 or unlocked[business.id] == true
+    local isUnlocked = (tonumber(business.tier) or 1) <= 1 or unlocked[business.id] == true or hasBusinessXPAccess(src, business)
     if not isUnlocked then
         return { error = "business_locked" }
     end
 
-    if counted < amount then
-        return { error = "not_enough_counted" }
+    -- Each business can only have one active process per player.
+    if hasActiveJob(identifier, business.id) then
+        return { error = "already_processing" }
+    end
+
+    -- Deposit uses unprocessed_money item (Dirty -> Counter -> Unprocessed -> Processor -> Cash)
+    if not Inventory or not Inventory.GetItemCount or not Inventory.RemoveItem then
+        return { error = "inventory_not_ready" }
+    end
+    local unprocessed = math.floor(tonumber(Inventory.GetItemCount(src, "unprocessed_money")) or 0)
+    if unprocessed < amount then
+        return { error = "not_enough_unprocessed" }
     end
 
     local maxCap = math.floor(tonumber(business.maxCapacity) or 0)
@@ -465,11 +545,15 @@ lib.callback.register("pmw:processor:deposit", function(source, processorId, bus
     end
 
     local fee = clamp(tonumber(business.feePercent) or 0, 0, 100)
-    local secondsPerCash = tonumber(business.secondsPerCash) or 0
-    if secondsPerCash < 0 then secondsPerCash = 0 end
+    local cashPerSecond = tonumber(business.cashPerSecond) or 0
+    if cashPerSecond < 0 then cashPerSecond = 0 end
 
     local startTs = nowSec()
-    local endTs = startTs + math.floor(amount * secondsPerCash)
+    local duration = 0
+    if cashPerSecond > 0 then
+        duration = math.ceil(amount / cashPerSecond)
+    end
+    local endTs = startTs + duration
     if endTs < startTs then endTs = startTs end
 
     local jobId = newJobId()
@@ -490,9 +574,7 @@ lib.callback.register("pmw:processor:deposit", function(source, processorId, bus
         )
     end)
 
-    counted = counted - amount
-    if counted < 0 then counted = 0 end
-    setBalances(identifier, counted, withdrawable, unlocked)
+    Inventory.RemoveItem(src, "unprocessed_money", amount)
 
     return buildState(src, processorId)
 end)
@@ -508,7 +590,6 @@ lib.callback.register("pmw:processor:withdraw", function(source, processorId, am
     finalizeCompletedJobs(identifier)
 
     local acct = getOrCreateAccountRow(identifier)
-    local counted = math.floor(tonumber(acct and acct.counted_balance) or 0)
     local withdrawable = math.floor(tonumber(acct and acct.withdrawable_balance) or 0)
     local unlocked = decodeUnlocked(acct and acct.unlocked_businesses)
 
@@ -522,7 +603,7 @@ lib.callback.register("pmw:processor:withdraw", function(source, processorId, am
 
     withdrawable = withdrawable - amount
     if withdrawable < 0 then withdrawable = 0 end
-    setBalances(identifier, counted, withdrawable, unlocked)
+    setBalances(identifier, withdrawable, unlocked)
 
     AddMoney(src, amount, "money")
     return buildState(src, processorId)
@@ -533,5 +614,33 @@ AddEventHandler("onResourceStart", function(res)
     CreateThread(function()
         ensureTables()
     end)
+end)
+
+-- Background watcher: finalize jobs for online players and notify immediately on completion.
+CreateThread(function()
+    Wait(2500)
+    while true do
+        ensureTables()
+        local now = nowSec()
+        local ids = awaitMySQL(function(done)
+            MySQL.Async.fetchAll(
+                "SELECT DISTINCT identifier FROM `pickle_moneywash_jobs` WHERE status='active' AND end_ts <= @now",
+                { ["@now"] = now },
+                function(r) done(r or {}) end
+            )
+        end)
+
+        for i = 1, #ids do
+            local identifier = ids[i] and ids[i].identifier or nil
+            if identifier and GetSourceFromIdentifier then
+                local src = GetSourceFromIdentifier(identifier)
+                if src then
+                    finalizeCompletedJobs(identifier, src)
+                end
+            end
+        end
+
+        Wait(5000)
+    end
 end)
 

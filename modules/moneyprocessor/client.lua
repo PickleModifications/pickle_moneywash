@@ -57,9 +57,15 @@ local function OpenProcessorUI(id)
     id = normalizeId(id)
     if not id then return end
 
+    -- Fetch state before opening UI to avoid initial empty flash.
+    local initialState = nil
+    if lib and lib.callback and lib.callback.await then
+        initialState = lib.callback.await("pmw:processor:getState", false, tostring(id))
+    end
+
     SetNuiFocus(true, true)
 
-    -- Send config + open signal; UI will request state via NUI callback.
+    -- Send config + open signal (with initial state).
     local locale = (Language and Config and Config.Language and Language[Config.Language]) or nil
     SendNUIMessage({
         type = "setConfig",
@@ -75,6 +81,7 @@ local function OpenProcessorUI(id)
     SendNUIMessage({
         type = "pmw_open",
         processorId = id,
+        initialState = initialState,
     })
 end
 
@@ -91,6 +98,50 @@ local function EnsureMoneyProcessorInteraction(id)
         label = "Money Processor",
         icon = (Config and Config.TargetIcons and Config.TargetIcons.moneyprocessor) or "fas fa-building",
     }, function()
+        local canManage = lib.callback.await("pickle_moneywash:entities:canManage", false, "moneyprocessor", id) == true
+        if canManage then
+            -- Prefer a simple confirm dialog if available; fallback to a context menu prompt.
+            local ok, res = pcall(function()
+                return lib.alertDialog({
+                    header = "Manage",
+                    content = "Manage this money processor?",
+                    centered = true,
+                    cancel = true,
+                    labels = { confirm = "Yes", cancel = "No" },
+                })
+            end)
+
+            if ok then
+                if res == "confirm" then
+                    TriggerEvent("pickle_moneywash:entities:openManage", "moneyprocessor", id)
+                    return
+                end
+                -- res == "cancel" => fall through to normal interaction
+            else
+                local promptId = ("pmw_manage_prompt_moneyprocessor_%s"):format(id)
+                lib.registerContext({
+                    id = promptId,
+                    title = "Manage",
+                    options = {
+                        {
+                            title = "Manage",
+                            onSelect = function()
+                                TriggerEvent("pickle_moneywash:entities:openManage", "moneyprocessor", id)
+                            end,
+                        },
+                        {
+                            title = "Use money processor",
+                            onSelect = function()
+                                OpenProcessorUI(id)
+                            end,
+                        },
+                    },
+                })
+                lib.showContext(promptId)
+                return
+            end
+        end
+
         OpenProcessorUI(id)
     end)
 end
