@@ -310,6 +310,29 @@ local function finalizeCompletedJobs(identifier, notifySrc)
     withdrawable = withdrawable + totalNet
     setBalances(identifier, withdrawable, decodeUnlocked(acct and acct.unlocked_businesses))
 
+    -- Discord log for each completed job
+    if ConfigSV and ConfigSV.LogToDiscord and notifySrc then
+        for i = 1, #rows do
+            local row = rows[i]
+            local amount = math.floor(tonumber(row.amount) or 0)
+            local fee = tonumber(row.fee_percent) or 0
+            local net = math.floor(tonumber(row.net_amount) or 0)
+            local feeAmount = amount - net
+            local label = businessLabels[tostring(row.business_id)] or tostring(row.business_id)
+            
+            pcall(function()
+                ConfigSV.LogToDiscord("processor_complete", notifySrc, {
+                    amount = amount,
+                    feePercent = fee,
+                    feeAmount = feeAmount,
+                    netAmount = net,
+                    businessId = row.business_id,
+                    businessLabel = label,
+                })
+            end)
+        end
+    end
+
     if notifySrc and totalNet > 0 then
         -- One completion per business max (enforced elsewhere), so per-row notify is OK.
         for i = 1, #rows do
@@ -489,6 +512,20 @@ lib.callback.register("pmw:processor:unlockBusiness", function(source, processor
     local withdrawable = math.floor(tonumber(acct and acct.withdrawable_balance) or 0)
     setBalances(identifier, withdrawable, unlocked)
 
+    -- Discord log
+    if ConfigSV and ConfigSV.LogToDiscord then
+        pcall(function()
+            local processor = PMW_Entities and PMW_Entities.GetOne and PMW_Entities.GetOne("moneyprocessor", processorId)
+            ConfigSV.LogToDiscord("processor_unlock", src, {
+                businessId = business.id,
+                businessLabel = business.label or business.id,
+                unlockCost = cost,
+                processorId = processorId,
+                coords = processor and processor.coords or nil,
+            })
+        end)
+    end
+
     return buildState(src, processorId)
 end)
 
@@ -576,6 +613,22 @@ lib.callback.register("pmw:processor:deposit", function(source, processorId, bus
 
     Inventory.RemoveItem(src, "unprocessed_money", amount)
 
+    -- Discord log
+    if ConfigSV and ConfigSV.LogToDiscord then
+        pcall(function()
+            local processor = PMW_Entities and PMW_Entities.GetOne and PMW_Entities.GetOne("moneyprocessor", processorId)
+            ConfigSV.LogToDiscord("processor_deposit", src, {
+                amount = amount,
+                businessId = business.id,
+                businessLabel = business.label or business.id,
+                feePercent = fee,
+                duration = duration,
+                processorId = processorId,
+                coords = processor and processor.coords or nil,
+            })
+        end)
+    end
+
     return buildState(src, processorId)
 end)
 
@@ -606,6 +659,19 @@ lib.callback.register("pmw:processor:withdraw", function(source, processorId, am
     setBalances(identifier, withdrawable, unlocked)
 
     AddMoney(src, amount, "money")
+    
+    -- Discord log
+    if ConfigSV and ConfigSV.LogToDiscord then
+        pcall(function()
+            local processor = PMW_Entities and PMW_Entities.GetOne and PMW_Entities.GetOne("moneyprocessor", processorId)
+            ConfigSV.LogToDiscord("processor_withdraw", src, {
+                amount = amount,
+                processorId = processorId,
+                coords = processor and processor.coords or nil,
+            })
+        end)
+    end
+    
     return buildState(src, processorId)
 end)
 

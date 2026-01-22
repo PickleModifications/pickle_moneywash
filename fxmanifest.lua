@@ -4,7 +4,6 @@ author "Pickle Mods"
 description "The best money wash resource for FiveM."
 version "v1.0.0"
 
-
 ui_page "nui/index.html"
 
 files {

@@ -381,6 +381,18 @@ PMW_Entities.Create = function(source, entityType, payload)
                     end
                     upsertCache(record)
                     TriggerClientEvent("pickle_moneywash:entities:changed", -1, "create", record.type, record.id, toClientRecord(record))
+                    
+                    -- Discord log
+                    if ConfigSV and ConfigSV.LogToDiscord then
+                        pcall(function()
+                            ConfigSV.LogToDiscord("entity_created", source, {
+                                entityId = record.id,
+                                entityType = record.type,
+                                coords = record.coords,
+                                placedViaItem = false, -- Admin created
+                            })
+                        end)
+                    end
                 end
             )
         end
@@ -452,6 +464,19 @@ lib.callback.register("pickle_moneywash:entities:createOwned", function(source, 
                     end
                     upsertCache(record)
                     TriggerClientEvent("pickle_moneywash:entities:changed", -1, "create", record.type, record.id, toClientRecord(record))
+                    
+                    -- Discord log
+                    if ConfigSV and ConfigSV.LogToDiscord then
+                        pcall(function()
+                            ConfigSV.LogToDiscord("entity_created", src, {
+                                entityId = record.id,
+                                entityType = record.type,
+                                coords = record.coords,
+                                placedViaItem = true, -- Item placed
+                            })
+                        end)
+                    end
+                    
                     p:resolve(true)
                 end
             )
@@ -472,6 +497,9 @@ PMW_Entities.Update = function(source, entityType, id, patch)
     local bucket = Cache.byType[entityType]
     local existing = bucket and bucket[id] or nil
     if not existing then return nil end
+
+    -- Save old coords for logging
+    local oldCoords = existing.coords
 
     local newCoords = patch.coords
     if newCoords ~= nil then
@@ -509,6 +537,18 @@ PMW_Entities.Update = function(source, entityType, id, patch)
                     end
                     upsertCache(existing)
                     TriggerClientEvent("pickle_moneywash:entities:changed", -1, "update", existing.type, existing.id, toClientRecord(existing))
+                    
+                    -- Discord log
+                    if ConfigSV and ConfigSV.LogToDiscord then
+                        pcall(function()
+                            ConfigSV.LogToDiscord("entity_updated", source, {
+                                entityId = existing.id,
+                                entityType = existing.type,
+                                oldCoords = oldCoords,
+                                newCoords = existing.coords,
+                            })
+                        end)
+                    end
                 end
             )
         end
@@ -524,6 +564,9 @@ PMW_Entities.Delete = function(source, entityType, id)
 
     local bucket = Cache.byType[entityType]
     if not bucket or not bucket[id] then return false end
+    
+    -- Get entity info before deletion for logging
+    local entityInfo = bucket[id]
 
     MySQL.Async.execute(
         "DELETE FROM `pickle_moneywash_entities` WHERE id = @id",
@@ -531,6 +574,17 @@ PMW_Entities.Delete = function(source, entityType, id)
         function()
             removeFromCache(entityType, id)
             TriggerClientEvent("pickle_moneywash:entities:changed", -1, "delete", entityType, id, nil)
+            
+            -- Discord log
+            if ConfigSV and ConfigSV.LogToDiscord then
+                pcall(function()
+                    ConfigSV.LogToDiscord("entity_deleted", source, {
+                        entityId = id,
+                        entityType = entityType,
+                        coords = entityInfo and entityInfo.coords or nil,
+                    })
+                end)
+            end
         end
     )
 
@@ -591,6 +645,13 @@ lib.callback.register("pickle_moneywash:entities:delete", function(source, entit
         return false
     end
 
+    -- Get entity info before deletion for logging
+    local entityInfo = nil
+    local bucket = Cache.byType[entityType]
+    if bucket and bucket[id] then
+        entityInfo = bucket[id]
+    end
+    
     local ok = PMW_Entities.Delete(src, entityType, id)
     if ok and isOwnerDelete and Inventory and Inventory.AddItem then
         Inventory.AddItem(src, refundItem, 1)

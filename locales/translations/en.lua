@@ -1,12 +1,7 @@
 Language["en"] = {
-    club_entry_welcome = "Welcome to the club! Enjoy the club!",
-    club_entry_exit = "Thank you for visiting the club! Come back soon!",
     interact_far = "You are too far away to do this.",
     no_player_near = "There are no players nearby to perform this action.",
     no_permission = "You do not have permission to do this.",
-    enter_line_wait = "You are in line (%s / %s)    \n[E] - Exit Line",
-    enter_line = "Enter Line",
-    club_entry_no_pass = "You do not have a club pass to enter this club, get one from the bouncer.",
     moneybag_collect = "Click to Collect - %s",
     moneycounter_no_dirty_money = "No dirty money to count.",
     moneycounter_place_money = "You place %s dirty money into the counter.",
@@ -52,4 +47,9 @@ Language["en"] = {
     failed_to_fetch_state = "Failed to fetch processor state.",
     no_state = "No processor state available.",
     no_response = "No response from server.",
+    objects_position = "[MOUSE]     - Position  \n[HOLD LEFT CLICK]     - Position Up / Down  \n[SCROLL UP / DOWN]     - Rotate  \n[SHIFT]     - Faster Movement  \n",
+    objects_cancel = "Cancel Placement",
+    objects_freeze = "Freeze Object",
+    objects_unfreeze = "Unfreeze Object",
+    objects_save = "Save Object",
 }

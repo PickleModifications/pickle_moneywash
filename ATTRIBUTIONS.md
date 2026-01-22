@@ -1,10 +1,7 @@
-# pickle_clubs
+# pickle_moneywash
 
 Thank you to the following who helped make this happen!
 
-# kadfilm (FX Lighting)
+# pixabay (Money Counter Audio)
 
-https://www.youtube.com/@KADFILM
-
-Really appreciate kad for allowing me to use their lighting as a dependency - big shoutout to them!
-
+https://pixabay.com/sound-effects/search/money-counter/

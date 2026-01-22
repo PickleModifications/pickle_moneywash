@@ -7,8 +7,10 @@ local RenderedMoneyCounters = {} -- [id] = { moneycounter=entity, money=entity }
 local MoneyCounterInteractions = {} -- [id] = interactionIndex (from CreateInteraction)
 local MoneyCounterEditing = {} -- [id] = true while being moved via gizmo
 local AnimatedBills = {} -- [id] = { [entity]=true }
+local RemoteBillCounts = {} -- [id] = last bill count seen (for detecting new sessions)
 
 local function DeleteAnimatedBills(id)
+    print("^2Deleting animated bills for id: " .. id)
     id = tostring(id)
     if not AnimatedBills[id] then return end
     for ent, _ in pairs(AnimatedBills[id]) do
@@ -85,10 +87,9 @@ local function SpawnAnimatedBill(id, count, isLocalInteraction)
             Wait(0)
         end
 
-        -- On remote clients, the bill is purely visual; delete once it reaches the slot.
+        -- Remote clients: keep bills in tray until session completes (same as local client)
         if not isLocalInteraction then
-            if DoesEntityExist(bill) then DeleteEntity(bill) end
-            if AnimatedBills[id] then AnimatedBills[id][bill] = nil end
+            -- Bill stays in tray; will be cleared when moneybag appears or session ends
             return
         end
 
@@ -325,6 +326,8 @@ function UnrenderMoneyCounter(id)
     end
     RenderedMoneyCounters[id] = nil
     DeleteAnimatedBills(id)
+    -- Clear remote bill tracking when counter is unrendered
+    RemoteBillCounts[id] = nil
 end
 
 function RenderMoneyCounter(id)
@@ -516,9 +519,9 @@ function InitializeMoneyCounterInteraction(id)
     local moneycounterCoords = coords + (interaction.rightVector * -0.35)
     local moneycounterEntity = CreateInteractiveEntity("moneycounter", moneycounterCoords, heading, {})
     CreateThread(function()
-        SetEntityVisible(PlayerPedId(), false, false)
         local scale = vector3(0.25, 0.175, 0.0)
         while MONEYCOUNTER_INTERACTION do
+            SetEntityLocallyInvisible(PlayerPedId(), true)
             DisableControlAction(1, 202, true)
             for k,v in pairs(MONEYCOUNTER_DUI) do
                 RenderTarget(v.id, v.duiProp)
@@ -530,7 +533,6 @@ function InitializeMoneyCounterInteraction(id)
             end
             Wait(0)
         end
-        SetEntityVisible(PlayerPedId(), true, false)
     end)
 
     -- Keepalive + proximity watchdog: auto-release if player leaves the area
@@ -592,6 +594,23 @@ CreateThread(function()
             local moneycounter = CreateProp(`prop_poly_bag_money`, coords.x, coords.y, coords.z, false, false, false)
             SetEntityCollision(moneycounter, true, true)
             SetEntityHeading(moneycounter, heading)
+            
+            -- For remote clients: clear bills when moneybag appears (session completed)
+            -- Check if this moneybag is near any money counter and clear bills for that counter
+            if not MONEYCOUNTER_INTERACTION then
+                for counterId, counterData in pairs(MoneyCounters) do
+                    if counterData and counterData.coords then
+                        local dist = #(coords - counterData.coords)
+                        -- Moneybag appears ~0.15 units from counter, so check within 1.0 units
+                        if dist <= 1.0 then
+                            DeleteAnimatedBills(counterId)
+                            RemoteBillCounts[counterId] = nil -- Reset tracking for next session
+                            break
+                        end
+                    end
+                end
+            end
+            
             return moneycounter, {
                 heightOffset = 0.275,
             }
@@ -761,7 +780,29 @@ RegisterNetEvent("pickle_moneywash:moneycounter:billInserted", function(moneyCou
 
     -- Only show if this client currently has the counter rendered (i.e., in range)
     if not RenderedMoneyCounters[id] or not RenderedMoneyCounters[id].moneycounter then return end
+    
+    -- For remote clients: if bill count resets to 1, it's a new session - clear old bills
+    local billCount = tonumber(count) or 1
+    if not MONEYCOUNTER_INTERACTION or MONEYCOUNTER_INTERACTION.id ~= id then
+        local lastCount = RemoteBillCounts[id] or 0
+        if billCount == 1 and lastCount > 1 then
+            -- New session started, clear old bills
+            DeleteAnimatedBills(id)
+        end
+        RemoteBillCounts[id] = billCount
+    end
+    
     SpawnAnimatedBill(id, count, false)
+end)
+
+-- Session ended event: clear bills when executing client stops using the counter
+RegisterNetEvent("pickle_moneywash:moneycounter:sessionEnded", function(moneyCounterId)
+    local id = tostring(moneyCounterId)
+    -- Only clear if we're not the executing client (they handle their own cleanup)
+    if not MONEYCOUNTER_INTERACTION or MONEYCOUNTER_INTERACTION.id ~= id then
+        DeleteAnimatedBills(id)
+        RemoteBillCounts[id] = nil -- Reset tracking for next session
+    end
 end)
 
 -- Temporarily hide while an admin is repositioning via gizmo

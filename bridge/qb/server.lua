@@ -62,7 +62,7 @@ function AddMoney(source, count, currency)
         local setting = Config.FrameworkSettings.dirtyMoney
         Inventory.AddItem(source, setting == "DEFAULT" and 'dirty_money' or setting, count)
     end
-    TriggerClientEvent("pickle_clubs:updateMoney", source, money)
+    TriggerClientEvent("pickle_moneywash:updateMoney", source, money)
 end
 
 function RemoveMoney(source, count, currency)
@@ -74,7 +74,7 @@ function RemoveMoney(source, count, currency)
         local setting = Config.FrameworkSettings.dirtyMoney
         Inventory.RemoveItem(source, setting == "DEFAULT" and 'dirty_money' or setting, count)
     end
-    TriggerClientEvent("pickle_clubs:updateMoney", source, money)
+    TriggerClientEvent("pickle_moneywash:updateMoney", source, money)
 end
 
 function GetMoney(source, currency)
@@ -87,7 +87,7 @@ function GetMoney(source, currency)
         local setting = Config.FrameworkSettings.dirtyMoney
         money = Inventory.GetItemCount(source, setting == "DEFAULT" and 'dirty_money' or setting)
     end
-    TriggerClientEvent("pickle_clubs:updateMoney", source, money)
+    TriggerClientEvent("pickle_moneywash:updateMoney", source, money)
     return money
 end
 
@@ -199,7 +199,7 @@ CreateThread(function()
 
     Inventory.UpdateInventory = function(source)
         SetTimeout(1000, function()
-            TriggerClientEvent("pickle_clubs:updateInventory", source, Inventory.GetInventory(source))
+            TriggerClientEvent("pickle_moneywash:updateInventory", source, Inventory.GetInventory(source))
         end)
     end
 
@@ -234,7 +234,7 @@ CreateThread(function()
         return (Inventory.GetItemCount(source, name) > 0)
     end
 
-    lib.callback.register("pickle_clubs:getInventory", function(source)
+    lib.callback.register("pickle_moneywash:getInventory", function(source)
         return Inventory.GetInventory(source)
     end)
 

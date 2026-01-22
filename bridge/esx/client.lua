@@ -60,12 +60,12 @@ CreateThread(function()
     
     Inventory.Ready = false
     
-    RegisterNetEvent("pickle_clubs:setupInventory", function(data)
+    RegisterNetEvent("pickle_moneywash:setupInventory", function(data)
         Inventory.Items = data.items
         Inventory.Ready = true
     end)
     
-    RegisterNetEvent("pickle_clubs:updateInventory", function(inventory) 
+    RegisterNetEvent("pickle_moneywash:updateInventory", function(inventory) 
         -- RefreshInventory(inventory)
     end)
 end)

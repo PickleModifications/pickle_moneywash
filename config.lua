@@ -66,7 +66,7 @@ Config.FrameworkSettings = {
 }
 Config.MoneyCounter = {
     maxCountAmount = 10000, -- Maximum amount of money you can count at once in the money counter.
-    billAmount = 3, -- The amount of bills you need to place into the money counter to wash the money.
+    billAmount = 10, -- The amount of bills you need to place into the money counter to wash the money.
     locations = {
         -- -- Vanilla Unicorn
         -- {
@@ -84,7 +84,7 @@ Config.MoneyWash = {
         interactDistance = 2.0,
         validateDistance = 5.0, -- server-side anti-cheat distance check
         prop = `prop_laptop_01a`, -- rendered at the placed coords (client-side)
-        propZOffset = -0.05,
+        propZOffset = 0.0,
     },
 
     -- Tiered businesses (tier is derived from array order; index 1 is tier 1 and is free to unlock).

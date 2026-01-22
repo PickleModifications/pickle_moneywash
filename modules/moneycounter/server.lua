@@ -91,6 +91,23 @@ RegisterNetEvent("pickle_moneywash:moneycounter:releaseUse", function(moneyCount
     local lock = MoneyCounterLocks[id]
     if lock and lock.src == src then
         clearLock(id)
+        -- Broadcast to nearby clients that the session ended so they can clear bills
+        local record = PMW_Entities.GetOne("moneycounter", id)
+        if record and record.coords then
+            local coords = record.coords
+            for _, player in ipairs(GetPlayers()) do
+                local pid = tonumber(player)
+                if pid and pid ~= src then
+                    local ped = GetPlayerPed(pid)
+                    if ped and ped ~= 0 then
+                        local pcoords = GetEntityCoords(ped)
+                        if #(pcoords - coords) <= (Config.RenderDistance or 100.0) then
+                            TriggerClientEvent("pickle_moneywash:moneycounter:sessionEnded", pid, tostring(id))
+                        end
+                    end
+                end
+            end
+        end
     end
 end)
 
@@ -99,6 +116,23 @@ AddEventHandler("playerDropped", function()
     local src = source
     for id, lock in pairs(MoneyCounterLocks) do
         if lock and lock.src == src then
+            -- Broadcast to nearby clients that the session ended (player disconnected)
+            local record = PMW_Entities.GetOne("moneycounter", id)
+            if record and record.coords then
+                local coords = record.coords
+                for _, player in ipairs(GetPlayers()) do
+                    local pid = tonumber(player)
+                    if pid and pid ~= src then
+                        local ped = GetPlayerPed(pid)
+                        if ped and ped ~= 0 then
+                            local pcoords = GetEntityCoords(ped)
+                            if #(pcoords - coords) <= (Config.RenderDistance or 100.0) then
+                                TriggerClientEvent("pickle_moneywash:moneycounter:sessionEnded", pid, tostring(id))
+                            end
+                        end
+                    end
+                end
+            end
             MoneyCounterLocks[id] = nil
         end
     end
@@ -111,6 +145,23 @@ CreateThread(function()
         for id, lock in pairs(MoneyCounterLocks) do
             local lastPing = tonumber(lock and lock.lastPing) or 0
             if (not lock) or (not lock.src) or (not isPlayerConnected(lock.src)) or lastPing <= 0 or (now - lastPing) > LOCK_TIMEOUT_MS then
+                -- Broadcast to nearby clients that the session ended (timeout)
+                local record = PMW_Entities.GetOne("moneycounter", id)
+                if record and record.coords then
+                    local coords = record.coords
+                    for _, player in ipairs(GetPlayers()) do
+                        local pid = tonumber(player)
+                        if pid and pid ~= lock.src then
+                            local ped = GetPlayerPed(pid)
+                            if ped and ped ~= 0 then
+                                local pcoords = GetEntityCoords(ped)
+                                if #(pcoords - coords) <= (Config.RenderDistance or 100.0) then
+                                    TriggerClientEvent("pickle_moneywash:moneycounter:sessionEnded", pid, tostring(id))
+                                end
+                            end
+                        end
+                    end
+                end
                 MoneyCounterLocks[id] = nil
             end
         end
@@ -149,6 +200,18 @@ local function doCountMoney(source, moneyCounterId)
     Inventory.AddItem(src, itemName, amountToWash)
 
     ShowNotification(src, _L("moneycounter_unprocessed_money", GetCurrencyString(amountToWash)))
+    
+    -- Discord log
+    if ConfigSV and ConfigSV.LogToDiscord then
+        pcall(function()
+            ConfigSV.LogToDiscord("money_counter_counted", src, {
+                amount = amountToWash,
+                counterId = id,
+                coords = moneycounterCoords,
+            })
+        end)
+    end
+    
     return {
         totalDirtyMoney = dirtyMoney - amountToWash,
     }

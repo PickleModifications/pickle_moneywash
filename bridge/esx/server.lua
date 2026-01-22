@@ -61,7 +61,7 @@ function AddMoney(source, count, currency)
     elseif (currency == "dirty") then
         xPlayer.addAccountMoney("black_money", count)
     end
-    TriggerClientEvent("pickle_clubs:updateMoney", source, GetMoney(source, currency))
+    TriggerClientEvent("pickle_moneywash:updateMoney", source, GetMoney(source, currency))
 end
 
 function RemoveMoney(source, count, currency)
@@ -72,7 +72,7 @@ function RemoveMoney(source, count, currency)
     elseif (currency == "dirty") then
         xPlayer.removeAccountMoney("black_money", count)
     end
-    TriggerClientEvent("pickle_clubs:updateMoney", source, GetMoney(source, currency))
+    TriggerClientEvent("pickle_moneywash:updateMoney", source, GetMoney(source, currency))
 end
 
 function GetMoney(source, currency)
@@ -84,7 +84,7 @@ function GetMoney(source, currency)
     elseif (currency == "dirty") then
         money = xPlayer.getAccount("black_money").money
     end    
-    TriggerClientEvent("pickle_clubs:updateMoney", source, money)
+    TriggerClientEvent("pickle_moneywash:updateMoney", source, money)
     return money
 end
 
@@ -211,7 +211,7 @@ CreateThread(function()
 
     Inventory.UpdateInventory = function(source)
         SetTimeout(1000, function()
-            TriggerClientEvent("pickle_clubs:updateInventory", source, Inventory.GetInventory(source))
+            TriggerClientEvent("pickle_moneywash:updateInventory", source, Inventory.GetInventory(source))
         end)
     end
 
@@ -250,7 +250,7 @@ CreateThread(function()
         return xPlayer.hasWeapon(name)
     end
 
-    lib.callback.register("pickle_clubs:getInventory", function(source)
+    lib.callback.register("pickle_moneywash:getInventory", function(source)
         return Inventory.GetInventory(source)
     end)
     
