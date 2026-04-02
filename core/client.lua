@@ -25,7 +25,7 @@ end
 
 function CreateProp(modelHash, ...)
     RequestModel(modelHash)
-    if not IsModelInCdimage(modelHash) then return CreateProp(`ch_prop_fingerprint_scanner_error_01b`, ...) end
+    if not IsModelInCdimage(modelHash) then return CreateProp(GetPropModel("createPropFallback"), ...) end
     while not HasModelLoaded(modelHash) do Wait(0) end
     local obj = CreateObject(modelHash, ...)
     SetModelAsNoLongerNeeded(modelHash)
@@ -146,7 +146,7 @@ function EnsureInteractionModel(index)
     if not data or data.entity then return end
     local entity
     if not data.model and not data.hiddenKeypress and Config.UseTarget and Config.NoModelTargeting then 
-        entity = CreateProp(`ng_proc_brick_01a`, data.coords.x, data.coords.y, data.coords.z, false, true, false)
+        entity = CreateProp(GetPropModel("invisibleTargetProp"), data.coords.x, data.coords.y, data.coords.z, false, true, false)
         SetEntityAlpha(entity, 0, false)
     elseif data.model and (not data.model.modelType or data.model.modelType == "ped") then
         local offset = data.model.offset or vector3(0.0, 0.0, 0.0)
@@ -357,7 +357,7 @@ CreateThread(function()
                     else 
                         lib.registerContext({
                             id = 'policejob_'..k,
-                            title = v.title or "Options",
+                            title = v.title or _L("ui_options"),
                             options = v.options
                         })
                         lib.showContext('policejob_'..k)
@@ -370,7 +370,7 @@ CreateThread(function()
                     else 
                         lib.registerContext({
                             id = 'policejob_'..k,
-                            title = v.title or "Options",
+                            title = v.title or _L("ui_options"),
                             options = v.options
                         })
                         lib.showContext('policejob_'..k)

@@ -27,7 +27,7 @@ local function RenderMoneyProcessor(id)
     if CURRENT_INTERACTION then return end
 
     local cfg = (Config and Config.MoneyWash and Config.MoneyWash.processor) or {}
-    local model = cfg.prop or `prop_laptop_01a`
+    local model = GetMoneyProcessorPropModel()
     local zoff = tonumber(cfg.propZOffset) or 0.0
 
     RenderedMoneyProcessors[id] = {} -- prevent double render
@@ -95,7 +95,7 @@ local function EnsureMoneyProcessorInteraction(id)
     MoneyProcessorInteractions[id] = CreateInteraction({
         coords = proc.coords,
         heading = proc.heading or 0.0,
-        label = "Money Processor",
+        label = _L("label_money_processor"),
         icon = (Config and Config.TargetIcons and Config.TargetIcons.moneyprocessor) or "fas fa-building",
     }, function()
         local canManage = lib.callback.await("pickle_moneywash:entities:canManage", false, "moneyprocessor", id) == true
@@ -103,11 +103,11 @@ local function EnsureMoneyProcessorInteraction(id)
             -- Prefer a simple confirm dialog if available; fallback to a context menu prompt.
             local ok, res = pcall(function()
                 return lib.alertDialog({
-                    header = "Manage",
-                    content = "Manage this money processor?",
+                    header = _L("pmw_manage"),
+                    content = _L("pmw_manage_processor_prompt"),
                     centered = true,
                     cancel = true,
-                    labels = { confirm = "Yes", cancel = "No" },
+                    labels = { confirm = _L("pmw_confirm_yes"), cancel = _L("pmw_confirm_no") },
                 })
             end)
 
@@ -121,16 +121,16 @@ local function EnsureMoneyProcessorInteraction(id)
                 local promptId = ("pmw_manage_prompt_moneyprocessor_%s"):format(id)
                 lib.registerContext({
                     id = promptId,
-                    title = "Manage",
+                    title = _L("pmw_manage"),
                     options = {
                         {
-                            title = "Manage",
+                            title = _L("pmw_manage"),
                             onSelect = function()
                                 TriggerEvent("pickle_moneywash:entities:openManage", "moneyprocessor", id)
                             end,
                         },
                         {
-                            title = "Use money processor",
+                            title = _L("pmw_use_money_processor"),
                             onSelect = function()
                                 OpenProcessorUI(id)
                             end,
@@ -230,16 +230,16 @@ CreateThread(function()
     if not PMW_EntitiesClient or not PMW_EntitiesClient.RegisterType then return end
 
     PMW_EntitiesClient.RegisterType("moneyprocessor", {
-        label = "Money Processor",
-        description = "Deposit counted money into businesses and withdraw washed cash.",
-        gizmoModel = (Config and Config.MoneyWash and Config.MoneyWash.processor and Config.MoneyWash.processor.prop) or `prop_laptop_01a`,
+        label = _L("label_money_processor"),
+        description = _L("desc_money_processor"),
+        gizmoModel = GetMoneyProcessorPropModel(),
         formatTitle = function(rec)
-            return ("[%s] Money Processor"):format(rec.id)
+            return _L("pmw_entity_title_money_processor", rec.id)
         end,
         formatDescription = function(rec)
             local heading = rec.heading or 0.0
             local x, y, z = rec.coords.x + 0.0, rec.coords.y + 0.0, rec.coords.z + 0.0
-            return ("Coords: %.3f, %.3f, %.3f | Heading: %.1f"):format(x, y, z, heading + 0.0)
+            return _L("pmw_entity_coords_heading", x, y, z, heading + 0.0)
         end,
         getGizmoStartFromRecord = function(rec)
             local heading = rec.heading or 0.0

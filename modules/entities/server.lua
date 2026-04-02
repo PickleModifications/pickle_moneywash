@@ -640,7 +640,7 @@ lib.callback.register("pickle_moneywash:entities:delete", function(source, entit
 
     if isOwnerDelete and Inventory and Inventory.CanCarryItem and not Inventory.CanCarryItem(src, refundItem, 1) then
         if ShowNotification then
-            ShowNotification(src, "^1You don't have space to receive the refund item.^0")
+            ShowNotification(src, _L("pmw_refund_no_inventory_space"))
         end
         return false
     end

@@ -406,7 +406,7 @@ function App() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <div className="text-base font-bold truncate">{b.label}</div>
-                          <div className="text-xs text-muted-foreground">Tier {b.tier}</div>
+                          <div className="text-xs text-muted-foreground"><Translate id="pmw_tier" args={[String(b.tier)]} /></div>
                           {!isUnlocked && <div className="text-xs px-2 py-1 rounded bg-destructive/20 text-destructive"><Translate id="pmw_locked" /></div>}
                           {isUnlocked && <div className="text-xs px-2 py-1 rounded bg-emerald-500/20 text-emerald-400"><Translate id="pmw_unlocked" /></div>}
                           {job && <div className="text-xs px-2 py-1 rounded bg-primary/20 text-primary"><Translate id="pmw_processing" /></div>}
@@ -414,13 +414,13 @@ function App() {
 
                         <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1">
                           <div>
-                            Max Capacity:{" "}
+                            <Translate id="pmw_max_capacity" />{" "}
                             <span className="text-foreground font-semibold">
-                              {capMax > 0 ? currency(capMax) : "Unlimited"}
+                              {capMax > 0 ? currency(capMax) : <Translate id="pmw_unlimited" />}
                             </span>
                           </div>
-                          <div>Fee: <span className="text-foreground font-semibold">{b.feePercent}%</span></div>
-                          <div>Speed: <span className="text-foreground font-semibold">{Math.round((b.cashPerSecond || 0) * 100) / 100}</span> $/s</div>
+                          <div><Translate id="pmw_stat_fee" /> <span className="text-foreground font-semibold">{b.feePercent}%</span></div>
+                          <div><Translate id="pmw_stat_speed" /> <span className="text-foreground font-semibold">{Math.round((b.cashPerSecond || 0) * 100) / 100}</span> <Translate id="pmw_per_second" /></div>
                         </div>
 
                         {job && (
@@ -430,7 +430,9 @@ function App() {
                               <div className="text-xs text-muted-foreground">{formatDuration(remaining)} <Translate id="pmw_remaining" /></div>
                             </div>
                             <div className="text-xs text-muted-foreground mt-1">
-                              <Translate id="pmw_amount" />: <span className="text-foreground font-semibold">{currency(job.amount)}</span> • Fee: {job.feePercent}%
+                              <Translate id="pmw_amount" />: <span className="text-foreground font-semibold">{currency(job.amount)}</span>
+                              {" • "}
+                              <Translate id="pmw_stat_fee" /> {job.feePercent}%
                             </div>
                             <div className="mt-2 h-2 w-full bg-muted rounded overflow-hidden">
                               <div
@@ -445,7 +447,12 @@ function App() {
                       <div className="flex flex-col gap-2 items-end">
                         {!isUnlocked ? (
                           <Button onClick={() => doUnlock(b.id)}>
-                            <Translate id="pmw_unlock" /> {b.unlockCost > 0 ? `(${currency(b.unlockCost)})` : `(${config?.locale?.free || "Free"})`}
+                            <Translate id="pmw_unlock" />{" "}
+                            {b.unlockCost > 0 ? `(${currency(b.unlockCost)})` : (
+                              <span>
+                                (<Translate id="free" />)
+                              </span>
+                            )}
                           </Button>
                         ) : (
                           <Button variant="secondary" onClick={() => openLaunder(b.id)} disabled={!!job}>
@@ -486,9 +493,9 @@ function App() {
             </div>
             {launderBusiness && (
               <div className="text-sm text-muted-foreground">
-                Max Capacity:{" "}
+                <Translate id="pmw_max_capacity" />{" "}
                 <span className="text-foreground font-semibold">
-                  {launderCapMax > 0 ? currency(launderCapMax) : "Unlimited"}
+                  {launderCapMax > 0 ? currency(launderCapMax) : <Translate id="pmw_unlimited" />}
                 </span>
               </div>
             )}
@@ -506,7 +513,7 @@ function App() {
               return (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <div className="text-muted-foreground">{config?.locale?.exchange_amount || "Amount"}</div>
+                    <div className="text-muted-foreground"><Translate id="exchange_amount" /></div>
                     <div className="font-semibold text-foreground">{currency(amount)}</div>
                   </div>
                   <input
@@ -566,7 +573,7 @@ function App() {
               return (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <div className="text-muted-foreground">{config?.locale?.exchange_amount || "Amount"}</div>
+                    <div className="text-muted-foreground"><Translate id="exchange_amount" /></div>
                     <div className="font-semibold text-foreground">{currency(amount)}</div>
                   </div>
                   <input

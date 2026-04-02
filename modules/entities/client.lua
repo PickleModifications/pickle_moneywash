@@ -230,11 +230,11 @@ local function openEntityTypeMenu(entityType)
         local list = lib.callback.await("pickle_moneywash:entities:list", false, entityType) or {}
         local options = {
             {
-                title = "Create new",
-                description = "Place a new entry using the gizmo.",
+                title = _L("pmw_entities_create_new"),
+                description = _L("pmw_entities_create_new_desc"),
                 onSelect = function()
                     if not def.toPayloadFromGizmo then
-                        return ShowNotification("^1This entity type does not support creation yet.^0")
+                        return ShowNotification(_L("pmw_err_not_supported_creation"))
                     end
 
                     local ped = PlayerPedId()
@@ -249,7 +249,7 @@ local function openEntityTypeMenu(entityType)
                     })
 
                     if not gizmoResult then
-                        return ShowNotification("Cancelled.")
+                        return ShowNotification(_L("pmw_cancelled"))
                     end
 
                     local payload = def.toPayloadFromGizmo(gizmoResult, nil)
@@ -264,10 +264,10 @@ local function openEntityTypeMenu(entityType)
                     end
                     local created = lib.callback.await("pickle_moneywash:entities:create", false, entityType, payload)
                     if not created then
-                        return ShowNotification("^1Failed to create.^0")
+                        return ShowNotification(_L("pmw_err_failed_create"))
                     end
 
-                    ShowNotification(("Created (%s)."):format(created.id or "unknown"))
+                    ShowNotification(_L("pmw_created_id", created.id or "unknown"))
                     TriggerServerEvent("pickle_moneywash:entities:requestSync")
                     refreshAndOpenList()
                 end,
@@ -276,8 +276,8 @@ local function openEntityTypeMenu(entityType)
 
         if #list == 0 then
             options[#options + 1] = {
-                title = ("No %s entries"):format(def.label or entityType),
-                description = "Create one to get started.",
+                title = _L("pmw_no_entries", def.label or entityType),
+                description = _L("pmw_create_one_to_start"),
                 disabled = true,
             }
         end
@@ -286,8 +286,8 @@ local function openEntityTypeMenu(entityType)
             local rec = list[i]
             local id = rec.id
 
-            local title = def.formatTitle and def.formatTitle(rec) or ("[%s] %s"):format(id, def.label or entityType)
-            local description = def.formatDescription and def.formatDescription(rec) or ("Coords: %s"):format(vecToString(rec.coords))
+            local title = def.formatTitle and def.formatTitle(rec) or _L("pmw_entity_manage_title", id, def.label or entityType)
+            local description = def.formatDescription and def.formatDescription(rec) or _L("pmw_coords_label", vecToString(rec.coords))
 
             options[#options + 1] = {
                 title = title,
@@ -297,15 +297,15 @@ local function openEntityTypeMenu(entityType)
 
             lib.registerContext({
                 id = ("pmw_entities_%s_%s"):format(entityType, id),
-                title = ("%s %s"):format(def.label or entityType, id),
+                title = _L("pmw_entity_list_title", def.label or entityType, id),
                 menu = ("pmw_entities_%s_list"):format(entityType),
                 options = {
                     {
-                        title = "Reposition",
-                        description = "Move it using the gizmo.",
+                        title = _L("pmw_reposition"),
+                        description = _L("pmw_reposition_desc"),
                         onSelect = function()
                             if not def.getGizmoStartFromRecord or not def.toPayloadFromGizmo then
-                                return ShowNotification("^1This entity type does not support repositioning yet.^0")
+                                return ShowNotification(_L("pmw_err_not_supported_reposition"))
                             end
 
                             -- Allow type-specific renderers to temporarily hide the live entity while we place
@@ -321,7 +321,7 @@ local function openEntityTypeMenu(entityType)
 
                             if not gizmoResult then
                                 TriggerEvent("pickle_moneywash:entities:editEnd", entityType, tostring(id))
-                                return ShowNotification("Cancelled.")
+                                return ShowNotification(_L("pmw_cancelled"))
                             end
 
                             local patch = def.toPayloadFromGizmo(gizmoResult, rec)
@@ -329,24 +329,24 @@ local function openEntityTypeMenu(entityType)
 
                             if not updated then
                                 TriggerEvent("pickle_moneywash:entities:editEnd", entityType, tostring(id))
-                                return ShowNotification("^1Failed to update.^0")
+                                return ShowNotification(_L("pmw_err_failed_update"))
                             end
 
-                            ShowNotification("Updated.")
+                            ShowNotification(_L("pmw_updated"))
                             TriggerServerEvent("pickle_moneywash:entities:requestSync")
                             TriggerEvent("pickle_moneywash:entities:editEnd", entityType, tostring(id))
                             refreshAndOpenList()
                         end,
                     },
                     {
-                        title = "Delete",
-                        description = "Permanently delete this entry.",
+                        title = _L("pmw_delete"),
+                        description = _L("pmw_delete_desc"),
                         onSelect = function()
                             local ok = lib.callback.await("pickle_moneywash:entities:delete", false, entityType, id)
                             if not ok then
-                                return ShowNotification("^1Failed to delete.^0")
+                                return ShowNotification(_L("pmw_err_failed_delete"))
                             end
-                            ShowNotification("Deleted.")
+                            ShowNotification(_L("pmw_deleted"))
                             TriggerServerEvent("pickle_moneywash:entities:requestSync")
                             refreshAndOpenList()
                         end,
@@ -375,7 +375,7 @@ local function openEntityManageMenu(entityType, id)
 
     local def = ClientTypes[entityType]
     if not def then
-        return ShowNotification("^1Unknown entity type.^0")
+        return ShowNotification(_L("pmw_err_unknown_entity_type"))
     end
 
     local rec = PMW_EntitiesClient.GetOne(entityType, id)
@@ -391,11 +391,11 @@ local function openEntityManageMenu(entityType, id)
     end
 
     if not rec then
-        return ShowNotification("^1Entity not found.^0")
+        return ShowNotification(_L("pmw_err_entity_not_found"))
     end
 
-    local title = def.formatTitle and def.formatTitle(rec) or ("[%s] %s"):format(id, def.label or entityType)
-    local description = def.formatDescription and def.formatDescription(rec) or ("Coords: %s"):format(vecToString(rec.coords))
+    local title = def.formatTitle and def.formatTitle(rec) or _L("pmw_entity_manage_title", id, def.label or entityType)
+    local description = def.formatDescription and def.formatDescription(rec) or _L("pmw_coords_label", vecToString(rec.coords))
 
     local blipEnabled = isEntityBlipEnabled(entityType, rec)
 
@@ -404,26 +404,26 @@ local function openEntityManageMenu(entityType, id)
         title = title,
         options = {
             {
-                title = ("Blip: %s"):format(blipEnabled and "ON" or "OFF"),
-                description = "Toggle the blip for this entity (global).",
+                title = _L("pmw_blip_toggle", blipEnabled and _L("pmw_blip_on") or _L("pmw_blip_off")),
+                description = _L("pmw_blip_toggle_desc"),
                 onSelect = function()
                     local data = (type(rec.data) == "table" and rec.data) or {}
                     data.blipEnabled = not blipEnabled
                     local updated = lib.callback.await("pickle_moneywash:entities:update", false, entityType, id, { data = data })
                     if not updated then
-                        return ShowNotification("^1Failed to update blip setting.^0")
+                        return ShowNotification(_L("pmw_err_failed_blip"))
                     end
-                    ShowNotification(("Blip %s."):format((not blipEnabled) and "enabled" or "disabled"))
+                    ShowNotification((not blipEnabled) and _L("pmw_blip_enabled") or _L("pmw_blip_disabled"))
                     TriggerServerEvent("pickle_moneywash:entities:requestSync")
                     openEntityManageMenu(entityType, id)
                 end,
             },
             {
-                title = "Reposition",
-                description = "Move it using the gizmo.",
+                title = _L("pmw_reposition"),
+                description = _L("pmw_reposition_desc"),
                 onSelect = function()
                     if not def.getGizmoStartFromRecord or not def.toPayloadFromGizmo then
-                        return ShowNotification("^1This entity type does not support repositioning yet.^0")
+                        return ShowNotification(_L("pmw_err_not_supported_reposition"))
                     end
 
                     TriggerEvent("pickle_moneywash:entities:editStart", entityType, id)
@@ -438,7 +438,7 @@ local function openEntityManageMenu(entityType, id)
 
                     if not gizmoResult then
                         TriggerEvent("pickle_moneywash:entities:editEnd", entityType, id)
-                        return ShowNotification("Cancelled.")
+                        return ShowNotification(_L("pmw_cancelled"))
                     end
 
                     local patch = def.toPayloadFromGizmo(gizmoResult, rec)
@@ -447,28 +447,28 @@ local function openEntityManageMenu(entityType, id)
                     TriggerEvent("pickle_moneywash:entities:editEnd", entityType, id)
 
                     if not updated then
-                        return ShowNotification("^1Failed to update.^0")
+                        return ShowNotification(_L("pmw_err_failed_update"))
                     end
 
-                    ShowNotification("Updated.")
+                    ShowNotification(_L("pmw_updated"))
                     TriggerServerEvent("pickle_moneywash:entities:requestSync")
                     openEntityManageMenu(entityType, id)
                 end,
             },
             {
-                title = "Delete",
-                description = "Permanently delete this entry.",
+                title = _L("pmw_delete"),
+                description = _L("pmw_delete_desc"),
                 onSelect = function()
                     local ok = lib.callback.await("pickle_moneywash:entities:delete", false, entityType, id)
                     if not ok then
-                        return ShowNotification("^1Failed to delete.^0")
+                        return ShowNotification(_L("pmw_err_failed_delete"))
                     end
-                    ShowNotification("Deleted.")
+                    ShowNotification(_L("pmw_deleted"))
                     TriggerServerEvent("pickle_moneywash:entities:requestSync")
                 end,
             },
             {
-                title = "Back to list",
+                title = _L("pmw_back_to_list"),
                 onSelect = function()
                     openEntityTypeMenu(entityType)
                 end,
@@ -484,14 +484,14 @@ local function openRootMenu()
     local options = {}
 
     if #types == 0 then
-        options[#options + 1] = { title = "No entity types registered", disabled = true }
+        options[#options + 1] = { title = _L("pmw_no_entity_types"), disabled = true }
     end
 
     for i = 1, #types do
         local t = types[i].type
         options[#options + 1] = {
             title = types[i].label or t,
-            description = types[i].description or ("Manage %s entries."):format(t),
+            description = types[i].description or _L("pmw_manage_entries_desc", t),
             onSelect = function()
                 openEntityTypeMenu(t)
             end,
@@ -500,7 +500,7 @@ local function openRootMenu()
 
     lib.registerContext({
         id = "pmw_entities_root",
-        title = "Placed Entities",
+        title = _L("pmw_placed_entities_title"),
         options = options,
     })
 
@@ -509,7 +509,7 @@ end
 
 RegisterCommand("pmw_entities", function()
     if not isAdmin() then
-        return ShowNotification("^1You do not have permission to use this.^0")
+        return ShowNotification(_L("pmw_no_permission"))
     end
     openRootMenu()
 end, false)
@@ -529,7 +529,7 @@ RegisterNetEvent("pickle_moneywash:entities:placeFromItem", function(entityType)
     if not entityType then return end
     local def = ClientTypes[entityType]
     if not def or not def.toPayloadFromGizmo then
-        return ShowNotification("^1This entity type cannot be placed.^0")
+        return ShowNotification(_L("pmw_err_cannot_place"))
     end
 
     local ped = PlayerPedId()
@@ -544,7 +544,7 @@ RegisterNetEvent("pickle_moneywash:entities:placeFromItem", function(entityType)
     })
 
     if not gizmoResult then
-        return ShowNotification("Cancelled.")
+        return ShowNotification(_L("pmw_cancelled"))
     end
 
     local payload = def.toPayloadFromGizmo(gizmoResult, nil)
@@ -560,10 +560,10 @@ RegisterNetEvent("pickle_moneywash:entities:placeFromItem", function(entityType)
 
     local created = lib.callback.await("pickle_moneywash:entities:createOwned", false, entityType, payload)
     if not created then
-        return ShowNotification("^1Failed to place (missing item or no permission).^0")
+        return ShowNotification(_L("pmw_err_failed_place"))
     end
 
-    ShowNotification(("Placed (%s)."):format(created.id or "unknown"))
+    ShowNotification(_L("pmw_placed_id", created.id or "unknown"))
     TriggerServerEvent("pickle_moneywash:entities:requestSync")
 end)
 
@@ -580,15 +580,15 @@ local function rightVectorAt(coords, heading)
 end
 
 PMW_EntitiesClient.RegisterType("moneycounter", {
-    label = "Money Counter",
-    description = "Wash dirty money at this location.",
-    gizmoModel = `bkr_prop_money_counter`,
+    label = _L("label_money_counter"),
+    description = _L("desc_money_counter"),
+    gizmoModel = GetPropModel("moneyCounter", "counter"),
     formatTitle = function(rec)
-        return ("[%s] Money Counter"):format(rec.id)
+        return _L("pmw_entity_title_money_counter", rec.id)
     end,
     formatDescription = function(rec)
         local heading = rec.heading or 0.0
-        return ("Center: %s | Heading: %.1f"):format(vecToString(rec.coords), heading + 0.0)
+        return _L("pmw_entity_center_heading", vecToString(rec.coords), heading + 0.0)
     end,
     getGizmoStartFromRecord = function(rec)
         local heading = rec.heading or 0.0

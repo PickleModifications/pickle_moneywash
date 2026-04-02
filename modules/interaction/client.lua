@@ -93,7 +93,7 @@ function CreateInteractiveEntity(entType, coords, heading, params)
 end
 
 function StartInteraction(coords, heading)
-    if CURRENT_INTERACTION then return ShowNotification("^1ERROR: Interaction already started") end
+    if CURRENT_INTERACTION then return ShowNotification(_L("interaction_already_started")) end
     local temp = CreateTennisBall(coords.x, coords.y, coords.z)
     SetEntityRotation(temp, 0.0, 0.0, heading, 2, true)
     local forwardVector, rightVector, upVector, position = GetEntityMatrix(temp)

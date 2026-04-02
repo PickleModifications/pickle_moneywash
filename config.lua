@@ -54,6 +54,30 @@ Config.EntityBlips = {
         radius = nil,
     },
 }
+-- Prop model overrides (joaat / backtick hashes). Change any value to retexture or swap meshes.
+-- Omitted keys fall back to built-ins in core/shared.lua (PROP_DEFAULTS).
+-- Tennis balls (CreateTennisBall / prop_tennis_ball) are not configurable.
+Config.Props = {
+    --- Used when CreateProp is given an invalid model (fallback retry).
+    createPropFallback = `ch_prop_fingerprint_scanner_error_01b`,
+    --- Invisible interaction anchor when targeting with no model (NoModelTargeting).
+    invisibleTargetProp = `ng_proc_brick_01a`,
+    moneyCounter = {
+        --- Placed counter machine, gizmo preview, interactive entity "moneycounter", GetModelDimensions.
+        counter = `bkr_prop_money_counter`,
+        --- Bill piles, animated bills, interactive entity "money".
+        unsorted = `bkr_prop_money_unsorted_01`,
+        --- DUI screen mesh + render target name "hei_mon" (must support named rendertarget if changed).
+        monitorOverlay = `hei_prop_hei_monitor_overlay`,
+        --- Interactive entity "moneybag" when counting completes.
+        bagMoney = `prop_poly_bag_money`,
+    },
+    --- World + gizmo model for money processor terminals. Overrides Config.MoneyWash.processor.prop when set here.
+    moneyProcessor = {
+        prop = `prop_laptop_01a`,
+    },
+}
+
 Config.FrameworkSettings = {
     dirtyMoney = "DEFAULT",
     usableItemMetadata = function(item, data)
@@ -83,7 +107,8 @@ Config.MoneyWash = {
     processor = {
         interactDistance = 2.0,
         validateDistance = 5.0, -- server-side anti-cheat distance check
-        prop = `prop_laptop_01a`, -- rendered at the placed coords (client-side)
+        -- Used when Config.Props.moneyProcessor.prop is not set (same default as Config.Props).
+        prop = `prop_laptop_01a`,
         propZOffset = 0.0,
     },
 

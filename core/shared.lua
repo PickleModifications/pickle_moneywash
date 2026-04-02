@@ -1,5 +1,44 @@
 Templates = {}
 
+--- Built-in defaults for Config.Props (omit keys in config to keep these).
+local PROP_DEFAULTS = {
+    createPropFallback = `ch_prop_fingerprint_scanner_error_01b`,
+    invisibleTargetProp = `ng_proc_brick_01a`,
+    moneyCounter = {
+        counter = `bkr_prop_money_counter`,
+        unsorted = `bkr_prop_money_unsorted_01`,
+        monitorOverlay = `hei_prop_hei_monitor_overlay`,
+        bagMoney = `prop_poly_bag_money`,
+    },
+    moneyProcessor = {
+        prop = `prop_laptop_01a`,
+    },
+}
+
+--- Single-level prop: GetPropModel("createPropFallback")
+--- Nested prop: GetPropModel("moneyCounter", "counter")
+function GetPropModel(category, key)
+    local props = Config and Config.Props
+    if key == nil then
+        local v = props and props[category]
+        if v ~= nil then return v end
+        return PROP_DEFAULTS[category]
+    end
+    local sub = props and props[category]
+    local v = sub and sub[key]
+    if v ~= nil then return v end
+    return PROP_DEFAULTS[category] and PROP_DEFAULTS[category][key]
+end
+
+--- Money processor world model: Config.Props.moneyProcessor.prop, else MoneyWash.processor.prop, else default.
+function GetMoneyProcessorPropModel()
+    local p = Config.Props and Config.Props.moneyProcessor and Config.Props.moneyProcessor.prop
+    if p ~= nil then return p end
+    local cfg = (Config and Config.MoneyWash and Config.MoneyWash.processor) or {}
+    if cfg.prop ~= nil then return cfg.prop end
+    return PROP_DEFAULTS.moneyProcessor.prop
+end
+
 function lerp(a, b, t) return a + (b-a) * t end
 
 function v3(coords) return vec3(coords.x, coords.y, coords.z), coords.w end

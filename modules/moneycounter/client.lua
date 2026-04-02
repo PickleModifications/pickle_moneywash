@@ -43,7 +43,7 @@ local function SpawnAnimatedBill(id, count, isLocalInteraction)
     local base = GetMoneyCounterBaseEntity(id)
     if not base or not DoesEntityExist(base) then return end
 
-    local bill = CreateProp(`bkr_prop_money_unsorted_01`, 0.0, 0.0, 0.0, false, false, false)
+    local bill = CreateProp(GetPropModel("moneyCounter", "unsorted"), 0.0, 0.0, 0.0, false, false, false)
     if not bill or bill == 0 then return end
 
     TrackAnimatedBill(id, bill)
@@ -226,12 +226,13 @@ local function CreateMoneyCounterDUI(entity)
     local tx = CreateRuntimeTextureFromDuiHandle(txd, 'moneycounter_txd', duiHandle)
     local coords = GetOffsetFromEntityInWorldCoords(entity, -0.07, -0.022, 0.269)
     print("^2Creating prop at coords: " .. coords.x .. ", " .. coords.y .. ", " .. coords.z)
-    local duiProp = CreateProp(`hei_prop_hei_monitor_overlay`, coords.x, coords.y, coords.z, false, false, false)
+    local monitorModel = GetPropModel("moneyCounter", "monitorOverlay")
+    local duiProp = CreateProp(monitorModel, coords.x, coords.y, coords.z, false, false, false)
     FreezeEntityPosition(duiProp, true)
     SetEntityRotation(duiProp, -30.0, 0.0, GetEntityHeading(entity), 2, true)
     -- Use pcall to catch any errors
     print("^2Creating runtime texture with name: " .. txdName .. ", handle: " .. handleStr)
-    local id = CreateNamedRenderTargetForModel("hei_mon", `hei_prop_hei_monitor_overlay`)
+    local id = CreateNamedRenderTargetForModel("hei_mon", monitorModel)
     RenderTarget(id, duiProp)
 
     print("^2Created render target with ID: ", id, duiProp)
@@ -343,11 +344,11 @@ function RenderMoneyCounter(id)
     local forwardVector, rightVector, upVector, position = GetEntityMatrix(temp)
     DeleteEntity(temp)
     local moneycounterCoords = coords + (rightVector * -0.35)
-    local moneycounter = CreateProp(`bkr_prop_money_counter`, moneycounterCoords.x, moneycounterCoords.y, moneycounterCoords.z, false, false, false)
+    local moneycounter = CreateProp(GetPropModel("moneyCounter", "counter"), moneycounterCoords.x, moneycounterCoords.y, moneycounterCoords.z, false, false, false)
     SetEntityCollision(moneycounter, true, true)
     SetEntityHeading(moneycounter, heading)
     local moneyCoords = coords + (rightVector * 0.35)
-    local money = CreateProp(`bkr_prop_money_unsorted_01`, moneyCoords.x, moneyCoords.y, moneyCoords.z, false, false, false)
+    local money = CreateProp(GetPropModel("moneyCounter", "unsorted"), moneyCoords.x, moneyCoords.y, moneyCoords.z, false, false, false)
     SetEntityCollision(money, true, true)
     SetEntityHeading(money, heading)
     RenderedMoneyCounters[id] = {
@@ -408,7 +409,7 @@ function StartMoneyCounterInteraction(id)
     --     Wait(500) -- Wait for DUI to be created
     --     UpdateMoneyCounter(moneycounterEntity, 0)
     -- end
-    local minimum, maximum = GetModelDimensions(`bkr_prop_money_counter`)
+    local minimum, maximum = GetModelDimensions(GetPropModel("moneyCounter", "counter"))
     local width = maximum.y - minimum.y
     local height = maximum.z - minimum.z
     -- Spawn position for money (where remaining money text will be shown)
@@ -496,7 +497,7 @@ function InitializeMoneyCounterInteraction(id)
     -- Acquire exclusive-use lock (one player per entity)
     local lock = lib.callback.await("pickle_moneywash:moneycounter:tryUse", false, id)
     if not lock or lock.ok ~= true then
-        ShowNotification(_L("moneycounter_in_use") or "Someone is already using this money counter.")
+        ShowNotification(_L("moneycounter_in_use"))
         return
     end
     local data = lib.callback.await("pickle_moneywash:getMoneyCounterData", false, id)
@@ -543,7 +544,7 @@ function InitializeMoneyCounterInteraction(id)
             local pcoords = GetEntityCoords(ped)
             local dist = #(pcoords - coords)
             if dist > validateDistance then
-                ShowNotification(_L("moneycounter_too_far") or "You moved too far away from the money counter.")
+                ShowNotification(_L("moneycounter_too_far"))
                 StopMoneyCounterInteraction(id)
                 break
             end
@@ -567,7 +568,7 @@ CreateThread(function()
     Wait(1000)
     RegisterInteractiveEntity("moneycounter", {
         init = function(coords, heading, data, params)
-            local moneycounter = CreateProp(`bkr_prop_money_counter`, coords.x, coords.y, coords.z, false, false, false)
+            local moneycounter = CreateProp(GetPropModel("moneyCounter", "counter"), coords.x, coords.y, coords.z, false, false, false)
             SetEntityCollision(moneycounter, true, true)
             SetEntityHeading(moneycounter, heading)
             
@@ -581,7 +582,7 @@ CreateThread(function()
     })
     RegisterInteractiveEntity("money", {
         init = function(coords, heading, data, params)
-            local moneycounter = CreateProp(`bkr_prop_money_unsorted_01`, coords.x, coords.y, coords.z, false, false, false)
+            local moneycounter = CreateProp(GetPropModel("moneyCounter", "unsorted"), coords.x, coords.y, coords.z, false, false, false)
             SetEntityCollision(moneycounter, true, true)
             SetEntityHeading(moneycounter, heading)
             return moneycounter, {
@@ -591,7 +592,7 @@ CreateThread(function()
     })
     RegisterInteractiveEntity("moneybag", {
         init = function(coords, heading, data, params)
-            local moneycounter = CreateProp(`prop_poly_bag_money`, coords.x, coords.y, coords.z, false, false, false)
+            local moneycounter = CreateProp(GetPropModel("moneyCounter", "bagMoney"), coords.x, coords.y, coords.z, false, false, false)
             SetEntityCollision(moneycounter, true, true)
             SetEntityHeading(moneycounter, heading)
             
@@ -644,7 +645,7 @@ local function EnsureMoneyCounterInteraction(id)
     MoneyCounterInteractions[id] = CreateInteraction({
         coords = moneyCounter.coords,
         heading = moneyCounter.heading,
-        label = "Money Counter",
+        label = _L("label_money_counter"),
         icon = Config.TargetIcons.moneycounter,
     }, function()
         local canManage = lib.callback.await("pickle_moneywash:entities:canManage", false, "moneycounter", id) == true
@@ -652,11 +653,11 @@ local function EnsureMoneyCounterInteraction(id)
             -- Prefer a simple confirm dialog if available; fallback to a context menu prompt.
             local ok, res = pcall(function()
                 return lib.alertDialog({
-                    header = "Manage",
-                    content = "Manage this money counter?",
+                    header = _L("pmw_manage"),
+                    content = _L("pmw_manage_counter_prompt"),
                     centered = true,
                     cancel = true,
-                    labels = { confirm = "Yes", cancel = "No" },
+                    labels = { confirm = _L("pmw_confirm_yes"), cancel = _L("pmw_confirm_no") },
                 })
             end)
 
@@ -670,16 +671,16 @@ local function EnsureMoneyCounterInteraction(id)
                 local promptId = ("pmw_manage_prompt_moneycounter_%s"):format(id)
                 lib.registerContext({
                     id = promptId,
-                    title = "Manage",
+                    title = _L("pmw_manage"),
                     options = {
                         {
-                            title = "Manage",
+                            title = _L("pmw_manage"),
                             onSelect = function()
                                 TriggerEvent("pickle_moneywash:entities:openManage", "moneycounter", id)
                             end,
                         },
                         {
-                            title = "Use money counter",
+                            title = _L("pmw_use_money_counter"),
                             onSelect = function()
                                 InitializeMoneyCounterInteraction(id)
                             end,
