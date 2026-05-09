@@ -668,6 +668,89 @@ lib.callback.register("pickle_moneywash:entities:canManage", function(source, en
     return canManageEntity(source, entityType, id) == true
 end)
 
+-- =========================
+-- Stealing entities placed by another player (Config.StealEntity)
+-- =========================
+
+local StealCooldowns = {} -- [entityType][id] = next-allowed os.time()
+
+local function canStealEntity(source, entityType, id)
+    if not (Config and Config.StealEntity and Config.StealEntity.enabled == true) then return false end
+    local src = tonumber(source); if not src then return false end
+    entityType = normalizeType(entityType)
+    id = id and tostring(id) or nil
+    if not entityType or not id then return false end
+
+    local bucket = Cache.byType[entityType]
+    local rec = bucket and bucket[id] or nil
+    if not rec then return false end
+    if not rec.owner then return false end -- nothing to steal (no owner)
+
+    if IsPlayerAdmin and IsPlayerAdmin(src) == true then return false end
+
+    local ownerId = getOwnerIdentifier(src)
+    if ownerId and tostring(rec.owner) == tostring(ownerId) then return false end
+
+    local cd = StealCooldowns[entityType] and StealCooldowns[entityType][id]
+    if cd and os.time() < cd then return false end
+
+    return true
+end
+
+local function applyStealCooldown(entityType, id)
+    local cdSec = tonumber(Config and Config.StealEntity and Config.StealEntity.cooldown) or 0
+    if cdSec <= 0 then return end
+    if not StealCooldowns[entityType] then StealCooldowns[entityType] = {} end
+    StealCooldowns[entityType][id] = os.time() + cdSec
+end
+
+lib.callback.register("pickle_moneywash:entities:canSteal", function(source, entityType, id)
+    return canStealEntity(source, entityType, id) == true
+end)
+
+lib.callback.register("pickle_moneywash:entities:steal", function(source, entityType, id)
+    local src = source
+    if not canStealEntity(src, entityType, id) then return false end
+    entityType = normalizeType(entityType)
+    id = tostring(id)
+
+    local bucket = Cache.byType[entityType]
+    local rec = bucket and bucket[id] or nil
+    if not rec then return false end
+
+    -- Always apply cooldown so spam-attempts cost time even on failures handled by client.
+    applyStealCooldown(entityType, id)
+
+    local newOwner = getOwnerIdentifier(src)
+    if not newOwner then return false end
+    local previousOwner = rec.owner
+
+    rec.owner = newOwner
+
+    MySQL.Async.execute(
+        "UPDATE `pickle_moneywash_entities` SET owner = @owner WHERE id = @id",
+        { ["@id"] = id, ["@owner"] = newOwner },
+        function()
+            upsertCache(rec)
+            TriggerClientEvent("pickle_moneywash:entities:changed", -1, "update", rec.type, rec.id, toClientRecord(rec))
+
+            if ConfigSV and ConfigSV.LogToDiscord then
+                pcall(function()
+                    ConfigSV.LogToDiscord("entity_stolen", src, {
+                        entityId = rec.id,
+                        entityType = rec.type,
+                        coords = rec.coords,
+                        previousOwner = previousOwner,
+                        newOwner = newOwner,
+                    })
+                end)
+            end
+        end
+    )
+
+    return true
+end)
+
 -- Register usable items for player-owned placement.
 CreateThread(function()
     Wait(500)

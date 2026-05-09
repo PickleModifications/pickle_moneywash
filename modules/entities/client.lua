@@ -519,6 +519,44 @@ PMW_EntitiesClient.OpenManage = function(entityType, id)
     openEntityManageMenu(entityType, id)
 end
 
+-- Run the steal flow (ox_lib skill check) and commit on success.
+-- Returns true if the steal succeeded (caller may want to refresh local state).
+PMW_EntitiesClient.TrySteal = function(entityType, id)
+    entityType = normalizeType(entityType)
+    if not entityType or not id then return false end
+
+    if not (Config and Config.StealEntity and Config.StealEntity.enabled) then return false end
+    if lib.callback.await("pickle_moneywash:entities:canSteal", false, entityType, tostring(id)) ~= true then
+        ShowNotification(_L("pmw_steal_unavailable"))
+        return false
+    end
+
+    local difficulty = Config.StealEntity.skillCheck or { "easy" }
+    local inputs = Config.StealEntity.inputs or { "e" }
+    local ok = false
+    if lib and lib.skillCheck then
+        local res = lib.skillCheck(difficulty, inputs)
+        ok = res == true
+    else
+        ok = true -- ox_lib unavailable; fall back to allow
+    end
+
+    if not ok then
+        -- Inform server so the cooldown is still applied (prevents spam retries).
+        lib.callback.await("pickle_moneywash:entities:steal", false, entityType, tostring(id))
+        ShowNotification(_L("pmw_steal_failed"))
+        return false
+    end
+
+    local committed = lib.callback.await("pickle_moneywash:entities:steal", false, entityType, tostring(id))
+    if committed ~= true then
+        ShowNotification(_L("pmw_steal_failed"))
+        return false
+    end
+    ShowNotification(_L("pmw_steal_success"))
+    return true
+end
+
 AddEventHandler("pickle_moneywash:entities:openManage", function(entityType, id)
     openEntityManageMenu(entityType, id)
 end)

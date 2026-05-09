@@ -99,6 +99,34 @@ local function EnsureMoneyProcessorInteraction(id)
         icon = (Config and Config.TargetIcons and Config.TargetIcons.moneyprocessor) or "fas fa-building",
     }, function()
         local canManage = lib.callback.await("pickle_moneywash:entities:canManage", false, "moneyprocessor", id) == true
+        local canSteal = (not canManage) and (Config and Config.StealEntity and Config.StealEntity.enabled)
+            and lib.callback.await("pickle_moneywash:entities:canSteal", false, "moneyprocessor", id) == true
+
+        if canSteal then
+            local promptId = ("pmw_steal_prompt_moneyprocessor_%s"):format(id)
+            lib.registerContext({
+                id = promptId,
+                title = _L("pmw_use_money_processor"),
+                options = {
+                    {
+                        title = _L("pmw_use_money_processor"),
+                        onSelect = function() OpenProcessorUI(id) end,
+                    },
+                    {
+                        title = _L("pmw_steal_entity"),
+                        description = _L("pmw_steal_entity_desc"),
+                        onSelect = function()
+                            if PMW_EntitiesClient and PMW_EntitiesClient.TrySteal then
+                                PMW_EntitiesClient.TrySteal("moneyprocessor", id)
+                            end
+                        end,
+                    },
+                },
+            })
+            lib.showContext(promptId)
+            return
+        end
+
         if canManage then
             -- Prefer a simple confirm dialog if available; fallback to a context menu prompt.
             local ok, res = pcall(function()

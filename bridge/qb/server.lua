@@ -60,7 +60,11 @@ function AddMoney(source, count, currency)
         xPlayer.Functions.AddMoney('cash', count)
     elseif (currency == "dirty") then
         local setting = Config.FrameworkSettings.dirtyMoney
-        Inventory.AddItem(source, setting == "DEFAULT" and 'dirty_money' or setting, count)
+        if GetResourceState("qbx_core") == "started" then
+            Inventory.AddItem(source, setting == "DEFAULT" and 'black_money' or setting, count)
+        else
+            Inventory.AddItem(source, setting == "DEFAULT" and 'dirty_money' or setting, count)
+        end
     end
     TriggerClientEvent("pickle_moneywash:updateMoney", source, money)
 end
@@ -70,9 +74,13 @@ function RemoveMoney(source, count, currency)
     local currency = currency or "money"
     if (currency == "money") then
         xPlayer.Functions.RemoveMoney('cash', count)
-    elseif (currency == "dirty") then
+    elseif (currency == "qbx_core") then
         local setting = Config.FrameworkSettings.dirtyMoney
-        Inventory.RemoveItem(source, setting == "DEFAULT" and 'dirty_money' or setting, count)
+        if GetResourceState("qbx_core") == "started" then
+            Inventory.RemoveItem(source, setting == "DEFAULT" and 'black_money' or setting, count)
+        else
+            Inventory.RemoveItem(source, setting == "DEFAULT" and 'dirty_money' or setting, count)
+        end
     end
     TriggerClientEvent("pickle_moneywash:updateMoney", source, money)
 end
@@ -85,7 +93,11 @@ function GetMoney(source, currency)
         money = xPlayer.PlayerData.money.cash
     elseif (currency == "dirty") then
         local setting = Config.FrameworkSettings.dirtyMoney
-        money = Inventory.GetItemCount(source, setting == "DEFAULT" and 'dirty_money' or setting)
+        if GetResourceState("qbx_core") == "started" then
+            money = Inventory.GetItemCount(source, setting == "DEFAULT" and 'black_money' or setting)
+        else
+            money = Inventory.GetItemCount(source, setting == "DEFAULT" and 'dirty_money' or setting)
+        end
     end
     TriggerClientEvent("pickle_moneywash:updateMoney", source, money)
     return money

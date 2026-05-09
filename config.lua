@@ -17,12 +17,12 @@ Config.ImageExtension = "png"
 Config.WeaponsAreItems = true -- This enables the use of weapons as items. If set to false, weapons will be treated as items and not as weapons.
 Config.Currency = { currency = "USD", countryCode = "en-US" } -- Look up JS currency and countryCode variables for more options. 
 Config.AdminGroups = {
-    -- "qbcore.admin",
-    -- "qbcore.god",
-    -- "god",
-    -- "admin",
-    -- "mod",
-    -- "superadmin",
+    "qbcore.admin",
+    "qbcore.god",
+    "god",
+    "admin",
+    "mod",
+    "superadmin",
 }
 Config.TargetIcons = {
     moneycounter = "fas fa-money-bill",
@@ -61,7 +61,7 @@ Config.Props = {
     --- Used when CreateProp is given an invalid model (fallback retry).
     createPropFallback = `ch_prop_fingerprint_scanner_error_01b`,
     --- Invisible interaction anchor when targeting with no model (NoModelTargeting).
-    invisibleTargetProp = `ng_proc_brick_01a`,
+    invisibleTargetProp = `sf_prop_sf_apple_01a`,
     moneyCounter = {
         --- Placed counter machine, gizmo preview, interactive entity "moneycounter", GetModelDimensions.
         counter = `bkr_prop_money_counter`,
@@ -76,6 +76,18 @@ Config.Props = {
     moneyProcessor = {
         prop = `prop_laptop_01a`,
     },
+}
+
+-- Allow players to steal entities placed by another player via an ox_lib skill check.
+-- When enabled and the player is not the owner and not an admin, the interaction prompt
+-- will include a "Steal" option that runs lib.skillCheck. On success, ownership transfers
+-- to the player and the entity behaves as if they placed it (they can manage/refund it).
+Config.StealEntity = {
+    enabled = false,
+    -- ox_lib skill check difficulty list. Examples: "easy","medium","hard", or { areaSize = 60, speedMultiplier = 1 }.
+    skillCheck = { "easy", "easy", "medium" },
+    inputs = { "e" }, -- Keys accepted by the skill check.
+    cooldown = 300, -- Per-entity steal cooldown in seconds (applies to failed and successful attempts).
 }
 
 Config.FrameworkSettings = {

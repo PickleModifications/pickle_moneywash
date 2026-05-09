@@ -8,6 +8,7 @@ local MoneyCounterInteractions = {} -- [id] = interactionIndex (from CreateInter
 local MoneyCounterEditing = {} -- [id] = true while being moved via gizmo
 local AnimatedBills = {} -- [id] = { [entity]=true }
 local RemoteBillCounts = {} -- [id] = last bill count seen (for detecting new sessions)
+local MoneyVisuals = {} -- [anchor entity] = attached visible money prop
 
 local function DeleteAnimatedBills(id)
     print("^2Deleting animated bills for id: " .. id)
@@ -416,39 +417,43 @@ function StartMoneyCounterInteraction(id)
     local spawnPosition = coords + (interaction.rightVector * 0.35)
     local movedEntities = {} -- Track entities that have moved from spawn position
     local movedBills = 0
+    -- Per-frame draw thread (DrawText3D must be called every frame to avoid flicker).
+    -- Kept separate from the bill-insertion logic so animation timing isn't affected by tick rate.
     CreateThread(function()
-        while MONEYCOUNTER_INTERACTION and not MONEYCOUNTER_INTERACTION.done do            
-            -- Draw 3D text at spawn position showing remaining money
+        while MONEYCOUNTER_INTERACTION and not MONEYCOUNTER_INTERACTION.done do
             local remainingMoney = countAmount * (1 - (movedBills / MONEYCOUNTER_INTERACTION.billAmount))
             if remainingMoney > 0 then
                 DrawText3D(spawnPosition.x, spawnPosition.y, spawnPosition.z + 0.15, _L("moneycounter_remaining", GetCurrencyString(math.floor(remainingMoney))))
             end
-            
+            for k, v in pairs(INT_ENTITIES) do
+                if v.type == "moneybag" and MONEYBAG_AMOUNTS[k] then
+                    local entityCoords = GetEntityCoords(k)
+                    DrawText3D(entityCoords.x, entityCoords.y, entityCoords.z + 0.15, _L("moneybag_collect", GetCurrencyString(math.floor(MONEYBAG_AMOUNTS[k]))))
+                elseif v.type == "money" and movedEntities[k] and moneyPerBill > 0 then
+                    local entityCoords = GetEntityCoords(k)
+                    DrawText3D(entityCoords.x, entityCoords.y, entityCoords.z + 0.1, ("%s"):format(GetCurrencyString(math.floor(moneyPerBill))))
+                end
+            end
+            Wait(0)
+        end
+    end)
+
+    CreateThread(function()
+        while MONEYCOUNTER_INTERACTION and not MONEYCOUNTER_INTERACTION.done do
             -- Collect entities to delete first to avoid modifying table during iteration
             local entitiesToDelete = {}
             for k,v in pairs(INT_ENTITIES) do
-                -- Draw 3D text on moneybag entities
-                if v.type == "moneybag" and DrawText3D and MONEYBAG_AMOUNTS[k] then
-                    local entityCoords = GetEntityCoords(k)
-                    local amount = MONEYBAG_AMOUNTS[k]
-                    DrawText3D(entityCoords.x, entityCoords.y, entityCoords.z + 0.15, _L("moneybag_collect", GetCurrencyString(math.floor(amount))))
-                end
-                
                 if v.type == "money" then
                     local entityCoords = GetEntityCoords(k)
                     local distanceFromSpawn = #(entityCoords - spawnPosition)
-                    
+
                     -- Check if entity has moved from spawn position (threshold: 0.1 units)
                     if distanceFromSpawn > 0.00001 and not movedEntities[k] then
                         -- Deduct money when entity is first moved from spawn position
                         movedEntities[k] = true -- Mark as moved so we don't deduct again
                         movedBills = movedBills + 1
                     end
-                    
-                    -- Draw 3D text on money entity showing moneyPerBill once it's moved from spawn position
-                    if movedEntities[k] and moneyPerBill > 0 then
-                        DrawText3D(entityCoords.x, entityCoords.y, entityCoords.z + 0.1, ("%s"):format(GetCurrencyString(math.floor(moneyPerBill))))
-                    end
+
                     local offset = GetOffsetFromEntityGivenWorldCoords(moneycounterEntity, entityCoords.x, entityCoords.y, entityCoords.z)
                     if offset.x > -0.4 and offset.x < 0.16 and entityCoords.z < moneycounterCoords.z + (height - 0.1) + 0.1 then
                         MONEYCOUNTER_INTERACTION.dirtyMoney = MONEYCOUNTER_INTERACTION.dirtyMoney - moneyPerBill
@@ -473,7 +478,7 @@ function StartMoneyCounterInteraction(id)
             for i = 1, #entitiesToDelete do
                 DeleteInteractiveEntity(entitiesToDelete[i])
             end
-            
+
             Wait(10)
         end
         if not MONEYCOUNTER_INTERACTION then return end
@@ -581,13 +586,32 @@ CreateThread(function()
         end,
     })
     RegisterInteractiveEntity("money", {
+        -- The visible "unsorted money" prop is sometimes replaced server-side by a
+        -- collisionless visual model, which makes the cursor raycast miss it. To keep
+        -- pickup reliable regardless of which model is used, we use an invisible
+        -- collidable anchor (Config.Props.invisibleTargetProp) as the interactive entity
+        -- and attach the visible money prop to it.
         init = function(coords, heading, data, params)
-            local moneycounter = CreateProp(GetPropModel("moneyCounter", "unsorted"), coords.x, coords.y, coords.z, false, false, false)
-            SetEntityCollision(moneycounter, true, true)
-            SetEntityHeading(moneycounter, heading)
-            return moneycounter, {
+            local anchor = CreateProp(GetPropModel("invisibleTargetProp"), coords.x, coords.y, coords.z, false, false, false)
+            SetEntityCollision(anchor, true, true)
+            SetEntityHeading(anchor, heading)
+            SetEntityAlpha(anchor, 0, false)
+            SetEntityVisible(anchor, false, false)
+
+            local visual = CreateProp(GetPropModel("moneyCounter", "unsorted"), coords.x, coords.y, coords.z, false, false, false)
+            SetEntityCollision(visual, false, false)
+            AttachEntityToEntity(visual, anchor, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+
+            MoneyVisuals[anchor] = visual
+
+            return anchor, {
                 heightOffset = 0.275,
             }
+        end,
+        delete = function(entity)
+            local visual = MoneyVisuals[entity]
+            if visual and DoesEntityExist(visual) then DeleteEntity(visual) end
+            MoneyVisuals[entity] = nil
         end,
     })
     RegisterInteractiveEntity("moneybag", {
@@ -649,6 +673,34 @@ local function EnsureMoneyCounterInteraction(id)
         icon = Config.TargetIcons.moneycounter,
     }, function()
         local canManage = lib.callback.await("pickle_moneywash:entities:canManage", false, "moneycounter", id) == true
+        local canSteal = (not canManage) and (Config and Config.StealEntity and Config.StealEntity.enabled)
+            and lib.callback.await("pickle_moneywash:entities:canSteal", false, "moneycounter", id) == true
+
+        if canSteal then
+            local promptId = ("pmw_steal_prompt_moneycounter_%s"):format(id)
+            lib.registerContext({
+                id = promptId,
+                title = _L("pmw_use_money_counter"),
+                options = {
+                    {
+                        title = _L("pmw_use_money_counter"),
+                        onSelect = function() InitializeMoneyCounterInteraction(id) end,
+                    },
+                    {
+                        title = _L("pmw_steal_entity"),
+                        description = _L("pmw_steal_entity_desc"),
+                        onSelect = function()
+                            if PMW_EntitiesClient and PMW_EntitiesClient.TrySteal then
+                                PMW_EntitiesClient.TrySteal("moneycounter", id)
+                            end
+                        end,
+                    },
+                },
+            })
+            lib.showContext(promptId)
+            return
+        end
+
         if canManage then
             -- Prefer a simple confirm dialog if available; fallback to a context menu prompt.
             local ok, res = pcall(function()
@@ -846,6 +898,10 @@ AddEventHandler("onResourceStop", function(resource)
         end
         for id, _ in pairs(AnimatedBills) do
             DeleteAnimatedBills(id)
+        end
+        for anchor, visual in pairs(MoneyVisuals) do
+            if visual and DoesEntityExist(visual) then DeleteEntity(visual) end
+            MoneyVisuals[anchor] = nil
         end
         MONEYCOUNTER_DUI = {}
         MONEYCOUNTER_ENTITIES = {}

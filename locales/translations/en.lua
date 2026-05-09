@@ -122,4 +122,11 @@ Language["en"] = {
 
     interaction_already_started = "^1ERROR: Interaction already started^0",
     pmw_refund_no_inventory_space = "^1You don't have space to receive the refund item.^0",
+
+    -- Steal entity (Config.StealEntity)
+    pmw_steal_entity = "Steal",
+    pmw_steal_entity_desc = "Attempt to take ownership of this entity.",
+    pmw_steal_unavailable = "You can't steal this right now.",
+    pmw_steal_failed = "Steal failed.",
+    pmw_steal_success = "You stole this entity.",
 }
