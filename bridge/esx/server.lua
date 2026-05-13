@@ -254,20 +254,22 @@ CreateThread(function()
         return Inventory.GetInventory(source)
     end)
     
-    if GetResourceState("ox_inventory") == "started" then 
+    Inventory.ItemExists = function(name) return Inventory.Items and Inventory.Items[name] ~= nil end
+
+    if GetResourceState("ox_inventory") == "started" then
         for item, data in pairs(exports.ox_inventory:Items()) do
             Inventory.Items[item] = {label = data.label}
         end
         Inventory.Ready = true
-    elseif GetResourceState("qs-inventory") == "started" then 
+    elseif GetResourceState("qs-inventory") == "started" then
         for item, data in pairs(exports['qs-inventory']:GetItemList()) do
             Inventory.Items[item] = {label = data.label}
         end
         Inventory.Ready = true
     else
-        MySQL.ready(function() 
-            MySQL.Async.fetchAll("SELECT * FROM items;", {}, function(results) 
-                for i=1, #results do 
+        MySQL.ready(function()
+            MySQL.Async.fetchAll("SELECT * FROM items;", {}, function(results)
+                for i=1, #results do
                     Inventory.Items[results[i].name] = {label = results[i].label}
                 end
                 Inventory.Ready = true

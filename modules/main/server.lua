@@ -29,4 +29,5 @@ RegisterNetEvent("pickle_moneywash:initializePlayer", function()
     if PMW_Entities and PMW_Entities.SyncPlayer then
         PMW_Entities.SyncPlayer(src)
     end
+    TriggerClientEvent("pickle_moneywash:warnMissingItems", src, PMW_MissingItems or {})
 end)

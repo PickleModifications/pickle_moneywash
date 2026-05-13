@@ -2,7 +2,7 @@ fx_version "cerulean"
 game "gta5"
 author "Pickle Mods"
 description "The best money wash resource for FiveM."
-version "v1.1.1"
+version "v1.1.2"
 
 ui_page "nui/index.html"
 

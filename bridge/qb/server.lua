@@ -254,5 +254,6 @@ CreateThread(function()
     for item, data in pairs(QBCore.Shared.Items) do
         Inventory.Items[item] = {label = data.label}
     end
+    Inventory.ItemExists = function(name) return Inventory.Items and Inventory.Items[name] ~= nil end
     Inventory.Ready = true
 end)
