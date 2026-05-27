@@ -74,7 +74,7 @@ function RemoveMoney(source, count, currency)
     local currency = currency or "money"
     if (currency == "money") then
         xPlayer.Functions.RemoveMoney('cash', count)
-    elseif (currency == "qbx_core") then
+    elseif (currency == "dirty") then
         local setting = Config.FrameworkSettings.dirtyMoney
         if GetResourceState("qbx_core") == "started" then
             Inventory.RemoveItem(source, setting == "DEFAULT" and 'black_money' or setting, count)
