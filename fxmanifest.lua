@@ -50,12 +50,14 @@ provides {
 lua54 'yes'
 
 escrow_ignore {
-	"config.lua",
-	"config_sv.lua",
-	"__INSTALL/**/*.*",
-	"core/*.*",
-	"bridge/**/**/*.*",
-	"bridge/**/*.*",
-    "locales/locale.lua",
-    "locales/translations/*.lua",
+    "config.lua",
+    "config_sv.lua",
+    '__INSTALL/**',
+    'bridge/**',
+    'locales/**',
+    'core/**',
+    'html/**',
+    'modules/**',
+    'nui/**',
+    'web/**',
 }
